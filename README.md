@@ -74,9 +74,15 @@ Staff edit sizes, stock and prices at `/admin`. The admin runs **on the web only
 - **WooCommerce:** the sync button is disabled until the store is connected. The API methods (`adminListProducts`, `updateInventory`, `resetInventory` in `src/api/client.ts`) are what the app server implements against the WooCommerce REST API.
 - **Still derived:** occasions come from formality and the product copy.
 
-## Demo mode
+## Demo tools
 
-Open the account menu: the person icon on Shop or the gear icon on Closet. The **Demo mode** section has these scenarios:
+The demo tools are for development and automated tests. They're **off in every build unless `EXPO_PUBLIC_DEMO_TOOLS=true` is set**, so the Railway web app, beta and store builds never show them. To turn them on locally:
+
+```
+EXPO_PUBLIC_DEMO_TOOLS=true npx expo start --clear
+```
+
+Then open the account menu: the person icon on Shop or the gear icon on Closet. The **Demo tools** section has these scenarios:
 
 | Scenario              | What you'll see                                                                                                        |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------- |

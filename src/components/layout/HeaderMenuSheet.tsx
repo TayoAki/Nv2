@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { router, useNavigationContainerRef, type Href } from 'expo-router';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
-import { apiMode, demoControls } from '@/api';
+import { demoControls } from '@/api';
 import { Icon } from '@/components/icons/Icon';
 import { AppText } from '@/components/ui/AppText';
 import { Divider } from '@/components/ui/Card';
@@ -12,7 +12,7 @@ import { useSession } from '@/data/account';
 import { confirm } from '@/lib/confirm';
 import { links, openBookFitting, openExternal } from '@/lib/links';
 import { resetToShop } from '@/lib/navigation';
-import { DEMO_SCENARIOS, useDevSettings } from '@/state/devSettings';
+import { DEMO_SCENARIOS, demoToolsEnabled, useDevSettings } from '@/state/devSettings';
 import { useHeaderMenu } from '@/state/headerMenu';
 import { showToast } from '@/state/toast';
 import { useTryOnSession } from '@/state/tryOnSession';
@@ -78,24 +78,20 @@ export function HeaderMenuSheet() {
         }}
       />
 
-      {apiMode === 'demo' ? (
+      {/* Staff tool on the web only; it isn't offered in the iOS and Android apps. */}
+      {Platform.OS === 'web' ? (
+        <ListRow icon="sliders" title="Store admin" subtitle="Staff sign-in: sizes, stock and prices" onPress={() => go('/admin')} />
+      ) : null}
+
+      {demoToolsEnabled ? (
         <View style={styles.demo}>
           <AppText variant="overline" color={colors.bronze}>
-            Demo mode
+            Demo tools
           </AppText>
           <AppText variant="secondary" color={colors.muted}>
-            Sample data only. Nothing is sent to a store or an AI provider. Pick a scenario to preview
-            the alternative states from the screen index.
+            Development builds only. Pick a scenario to preview the alternative states from the
+            screen index.
           </AppText>
-          {/* Staff tool on the web only; it isn't offered in the iOS and Android apps. */}
-          {Platform.OS === 'web' ? (
-            <ListRow
-              icon="sliders"
-              title="Store admin"
-              subtitle="Staff sign-in: sizes, stock and prices"
-              onPress={() => go('/admin')}
-            />
-          ) : null}
           <View style={styles.scenarios} accessibilityRole="radiogroup">
             {DEMO_SCENARIOS.map((option) => {
               const selected = option.value === scenario;
