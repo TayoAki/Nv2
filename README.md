@@ -110,7 +110,7 @@ Demo data is saved on the device (AsyncStorage, or localStorage on web). The cho
 - `POST /v1/admin/sessions`, `GET` / `DELETE /v1/admin/session`: staff sign-in with scrypt-hashed passwords. Session tokens are stored only as hashes and last 12 hours. Sign-in pauses after 5 failures per email or 20 per client.
 - `GET /v1/admin/products`, `PUT` / `DELETE /v1/admin/products/:id/inventory`: sizes, stock and price edits, validated and logged in `inventory_audit`.
 
-Point the app at it with `EXPO_PUBLIC_API_URL` (in `.env`, or set when building). The app then syncs the catalog from the server (at most every 30 seconds, and right after a staff edit), and the store admin signs in against the server.
+The app points at the live server through `EXPO_PUBLIC_API_URL` in `.env` (`https://api-production-b54e.up.railway.app`). After changing it, restart with `npx expo start --clear`, because the value is baked into the bundle. Delete the line to run on the demo backend only. The app then syncs the catalog from the server (at most every 30 seconds, and right after a staff edit), and the store admin signs in against the server.
 
 Server variables in Railway:
 
