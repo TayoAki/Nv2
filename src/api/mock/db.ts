@@ -31,7 +31,7 @@ import {
 } from './fixtures';
 
 /** Bump when fixture or storage shapes change; older saved demo data is replaced. */
-const DB_VERSION = 6;
+const DB_VERSION = 7;
 const STORAGE_KEY = 'nyoni.demo-db';
 
 export type JobScenario = 'normal' | 'slow' | 'timeout' | 'ai_failure' | 'quota';

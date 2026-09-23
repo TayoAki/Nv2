@@ -70,14 +70,28 @@ function pieceFormality(item: WardrobeItem): number {
 
 const TARGET: Record<Formality, number> = { 0: 0.4, 1: 1.6, 2: 2.3 };
 
+const STOP_WORDS = new Set(['the', 'and', 'for', 'with', 'from', 'my', 'style', 'this', 'that', 'what', 'wear', 'look']);
+
+const words = (text: string) =>
+  text
+    .toLowerCase()
+    .split(/[^a-z]+/)
+    .filter((word) => word.length >= 3 && !STOP_WORDS.has(word));
+
+/**
+ * The closet piece a request names, by the words it shares with the piece's name and colour
+ * ("my navy blazer" finds the Indigo Jacquard Tailored Blazer, whose colour is navy). Two
+ * shared words are needed, so "dinner" alone never picks a piece.
+ */
 function findFocusItem(text: string, items: WardrobeItem[]): WardrobeItem | undefined {
-  const lower = text.toLowerCase();
-  return items.find((item) =>
-    item.name
-      .toLowerCase()
-      .split(/\s+/)
-      .every((word) => lower.includes(word)),
-  );
+  const asked = new Set(words(text));
+  let best: { item: WardrobeItem; score: number } | undefined;
+  for (const item of items) {
+    const itemWords = new Set([...words(item.name), ...words(item.color?.name ?? ''), ...words(item.kind)]);
+    const score = [...itemWords].filter((word) => asked.has(word)).length;
+    if (score >= 2 && (!best || score > best.score)) best = { item, score };
+  }
+  return best?.item;
 }
 
 function pick(items: WardrobeItem[], slot: Slot, target: number, avoidHex?: string): WardrobeItem | undefined {
@@ -171,8 +185,10 @@ export function recommend(input: {
     );
     chosen.outer = pick(outerPool.length ? outerPool : available, 'outer', target);
   }
+  // A suit is worn whole: its own trousers fill the bottom.
+  const wearingSuit = chosen.outer?.kind === 'suit';
   chosen.top ??= pick(available, 'top', target, chosen.outer?.color?.hex);
-  chosen.bottom ??= pick(available, 'bottom', target, chosen.outer?.color?.hex);
+  if (!wearingSuit) chosen.bottom ??= pick(available, 'bottom', target, chosen.outer?.color?.hex);
   chosen.shoes ??= pick(available, 'shoes', target);
   if (formality === 2) {
     chosen.accessory ??= pick(
@@ -186,7 +202,7 @@ export function recommend(input: {
     .map((slot) => chosen[slot])
     .filter((item): item is WardrobeItem => !!item);
 
-  if (pieces.length < 3 || !chosen.bottom) {
+  if (pieces.length < (wearingSuit ? 2 : 3) || !(chosen.bottom || wearingSuit)) {
     return {
       status: 'no_match',
       reply: `I couldn't build a complete ${base.label} look from what's available. Check whether pieces are marked unavailable, or add more clothes.`,

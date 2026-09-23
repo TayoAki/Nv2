@@ -15,9 +15,15 @@ const rows = JSON.parse(
   readFileSync(new URL('../../shared/catalog/nyoni-capsule.json', import.meta.url), 'utf8'),
 ) as CapsuleRow[];
 
+/** A capsule row (one wearable piece) by key. */
+export const capsuleRow = (key: string) => rows.find((row) => row.key === key) ?? null;
+
 /** The export without edits; used to check product ids and to reset. */
 const baseCatalog = buildCapsuleCatalog(rows);
 const baseIds = new Set(baseCatalog.map((product) => product.id));
+
+/** The product a piece belongs to (a suit for its jacket, trousers or waistcoat). */
+export const productForPiece = (key: string) => baseCatalog.find((product) => product.pieces.some((piece) => piece.key === key)) ?? null;
 
 type InventoryRow = { product_id: string; price_minor: number; currency: string; sizes: InventoryOverride['sizes']; updated_at: Date };
 

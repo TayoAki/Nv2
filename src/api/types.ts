@@ -285,6 +285,10 @@ export type WardrobeItem = {
   /** "Owned" only for confirmed items; "Ordered" until delivery is confirmed (plan section 12). */
   ownership: 'owned' | 'ordered';
   provenance: 'photo_import' | 'manual' | 'order' | 'demo';
+  /** The Nyoni capsule piece this is, when it came from the store (its photo drives renders). */
+  capsuleKey?: string;
+  /** Server copy of the item's cut-out, for renders (set by the photo import pipeline). */
+  cutoutBlobId?: string;
   image?: MediaImage;
   photos: MediaImage[];
   tryOnEligible: boolean;

@@ -61,51 +61,70 @@ export function buildCatalog(inventory: Record<string, InventoryOverride> = {}):
   return buildCapsuleCatalog(inventory);
 }
 
-const WARDROBE_SEEDS: {
-  key: string;
-  name: string;
-  category: WardrobeCategory;
-  kind: GarmentKind;
-  color: ColorInfo;
-  pattern: string;
-  tryOnEligible: boolean;
-}[] = [
-  { key: 'navy-blazer', name: 'Navy Blazer', category: 'jackets', kind: 'jacket', color: COLORS.navy, pattern: 'Solid', tryOnEligible: true },
-  { key: 'ivory-shirt', name: 'Ivory Shirt', category: 'shirts', kind: 'shirt', color: COLORS.ivory, pattern: 'Solid', tryOnEligible: true },
-  { key: 'charcoal-trousers', name: 'Charcoal Trousers', category: 'trousers', kind: 'trousers', color: COLORS.charcoal, pattern: 'Solid', tryOnEligible: true },
-  { key: 'brown-loafers', name: 'Brown Loafers', category: 'shoes', kind: 'shoes', color: COLORS.brown, pattern: 'Solid', tryOnEligible: false },
-  { key: 'ivory-knit', name: 'Ivory Knit', category: 'knitwear', kind: 'knitwear', color: { name: 'Ivory', hex: '#E6DCC6' }, pattern: 'Textured', tryOnEligible: true },
-  { key: 'white-sneakers', name: 'White Sneakers', category: 'shoes', kind: 'shoes', color: COLORS.white, pattern: 'Solid', tryOnEligible: false },
-  { key: 'leather-belt', name: 'Leather Belt', category: 'accessories', kind: 'accessory', color: COLORS.brown, pattern: 'Solid', tryOnEligible: false },
-  { key: 'sunglasses', name: 'Sunglasses', category: 'accessories', kind: 'accessory', color: COLORS.tortoise, pattern: 'Patterned', tryOnEligible: false },
-  { key: 'navy-pocket-square', name: 'Pocket Square', category: 'accessories', kind: 'accessory', color: COLORS.navy, pattern: 'Polka dot', tryOnEligible: false },
-  { key: 'grey-flannel-trousers', name: 'Grey Flannel Trousers', category: 'trousers', kind: 'trousers', color: COLORS.grey, pattern: 'Solid', tryOnEligible: true },
-  { key: 'white-oxford-shirt', name: 'White Oxford Shirt', category: 'shirts', kind: 'shirt', color: COLORS.white, pattern: 'Solid', tryOnEligible: true },
-  { key: 'camel-overcoat', name: 'Camel Overcoat', category: 'jackets', kind: 'jacket', color: COLORS.camel, pattern: 'Solid', tryOnEligible: true },
+/**
+ * The demo member's closet: real Nyoni capsule pieces with their photos. Suits stay whole
+ * (one item, one photo). The capsule has no shirts, so outfits leave the shirt to the render,
+ * which fills in a plain white shirt.
+ */
+const CLOSET_PRODUCTS = [
+  'p-nathan',
+  'p-grayson',
+  'p-navy-aztec-blazer',
+  'p-vicenzo',
+  'p-thomson-blazer',
+  'p-taupe-flat-front-tailored-dress-pants',
+  'p-walnut-tweed-pant',
+  'p-midnight-glen-plaid-pant',
+  'p-classic-side-adjuster-dress-pants',
+  'p-kenzie',
+  'p-chalcedony',
+  'p-antwerp-wing-tip',
+  'p-chelsea-ii',
+  'p-silvano-2',
+  'p-venez-2',
+  'p-black-belt-2',
 ];
 
-export const wardrobeId = (key: string) => `w-${key}`;
+const WARDROBE_CATEGORY: Record<Product['category'], WardrobeCategory> = {
+  suits: 'jackets',
+  tuxedos: 'jackets',
+  jackets: 'jackets',
+  waistcoats: 'waistcoats',
+  shirts: 'shirts',
+  trousers: 'trousers',
+  shoes: 'shoes',
+  accessories: 'accessories',
+};
+
+export const wardrobeId = (productId: string) => `w-${productId.replace(/^p-/, '')}`;
+
+const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 export function buildWardrobe(now: number): WardrobeItem[] {
-  return WARDROBE_SEEDS.map((seed, index) => {
-    // Newest first, so the four concept pieces lead the grid.
+  const catalog = buildCapsuleCatalog();
+  return CLOSET_PRODUCTS.map((productId, index) => {
+    const product = catalog.find((p) => p.id === productId);
+    if (!product) throw new Error(`Closet fixture ${productId} is not in the capsule`);
+    const [piece] = product.pieces;
     const created = new Date(now - (index + 1) * 36e5).toISOString();
     return {
-      id: wardrobeId(seed.key),
-      name: seed.name,
-      category: seed.category,
-      kind: seed.kind,
-      color: seed.color,
-      pattern: seed.pattern,
-      brand: null,
+      id: wardrobeId(productId),
+      name: product.title,
+      category: WARDROBE_CATEGORY[product.category],
+      kind: product.kind,
+      color: product.color,
+      pattern: capitalize(piece.pattern),
+      brand: product.vendor,
       size: null,
       availability: 'ready',
       archived: false,
       favorite: false,
       ownership: 'owned',
       provenance: 'demo',
-      photos: [],
-      tryOnEligible: seed.tryOnEligible,
+      capsuleKey: piece.key,
+      image: product.images[0],
+      photos: product.images,
+      tryOnEligible: product.tryOn.eligible,
       createdAt: created,
       updatedAt: created,
     };
@@ -114,15 +133,15 @@ export function buildWardrobe(now: number): WardrobeItem[] {
 
 export function buildOutfits(now: number): Outfit[] {
   const at = (hoursAgo: number) => new Date(now - hoursAgo * 36e5).toISOString();
-  const owned = (key: string) => ({ kind: 'owned' as const, itemId: wardrobeId(key) });
+  const owned = (productId: string) => ({ kind: 'owned' as const, itemId: wardrobeId(productId) });
   return [
     {
       id: 'o-dinner-look',
       title: 'Your dinner look',
       occasion: 'dinner',
-      explanation: 'Navy and ivory keep it polished.',
-      items: [owned('navy-blazer'), owned('ivory-shirt'), owned('charcoal-trousers'), owned('brown-loafers')],
-      complement: { productId: 'p-venez-2' },
+      explanation: 'Navy and taupe keep it polished.',
+      items: [owned('p-navy-aztec-blazer'), owned('p-taupe-flat-front-tailored-dress-pants'), owned('p-antwerp-wing-tip')],
+      complement: { productId: 'p-belagio-2' },
       saved: false,
       ownedOnly: false,
       createdAt: at(0.2),
@@ -131,14 +150,8 @@ export function buildOutfits(now: number): Outfit[] {
       id: 'o-dinner-in-navy',
       title: 'Dinner in navy',
       occasion: 'dinner',
-      explanation: 'Navy and ivory keep it polished.',
-      items: [
-        owned('navy-blazer'),
-        owned('ivory-shirt'),
-        owned('charcoal-trousers'),
-        owned('brown-loafers'),
-        owned('navy-pocket-square'),
-      ],
+      explanation: 'Tonal navy with a quiet square keeps it sharp.',
+      items: [owned('p-nathan'), owned('p-chelsea-ii'), owned('p-silvano-2')],
       complement: null,
       saved: true,
       ownedOnly: true,
@@ -148,14 +161,12 @@ export function buildOutfits(now: number): Outfit[] {
       id: 'o-weekend-refined',
       title: 'Weekend refined',
       occasion: 'everyday',
-      explanation: 'Soft ivory layers relax the charcoal.',
+      explanation: 'Burnt ochre warms the midnight check.',
       items: [
-        owned('ivory-shirt'),
-        owned('charcoal-trousers'),
-        owned('ivory-knit'),
-        owned('white-sneakers'),
-        owned('leather-belt'),
-        owned('sunglasses'),
+        owned('p-thomson-blazer'),
+        owned('p-midnight-glen-plaid-pant'),
+        owned('p-antwerp-wing-tip'),
+        owned('p-venez-2'),
       ],
       complement: null,
       saved: true,

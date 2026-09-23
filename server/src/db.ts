@@ -42,6 +42,71 @@ const MIGRATIONS: string[] = [
     at timestamptz not null default now()
   );
   `,
+  // 2: shopper devices, private images, credits, render batches, closet imports.
+  `
+  create table devices (
+    id uuid primary key default gen_random_uuid(),
+    token_hash text not null unique,
+    credits integer not null check (credits >= 0),
+    created_at timestamptz not null default now()
+  );
+  create table blobs (
+    id text primary key,
+    device_id uuid references devices (id) on delete cascade,
+    kind text not null,
+    content_type text not null,
+    bytes bytea not null,
+    width integer,
+    height integer,
+    created_at timestamptz not null default now(),
+    expires_at timestamptz
+  );
+  create index blobs_expires_at on blobs (expires_at);
+  create table render_batches (
+    id text primary key,
+    device_id uuid not null references devices (id) on delete cascade,
+    quality text not null,
+    credits_reserved integer not null,
+    credits_refunded integer not null default 0,
+    status text not null default 'running',
+    input jsonb not null,
+    created_at timestamptz not null default now(),
+    finished_at timestamptz
+  );
+  create index render_batches_device on render_batches (device_id, created_at);
+  create table renders (
+    id text primary key,
+    batch_id text not null references render_batches (id) on delete cascade,
+    position integer not null,
+    status text not null default 'queued',
+    attempts integer not null default 0,
+    next_attempt_at timestamptz not null default now(),
+    prompt text not null,
+    result_blob_id text references blobs (id) on delete set null,
+    error_code text,
+    error_message text,
+    cost_usd numeric,
+    simulated boolean not null default false,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+  );
+  create index renders_queue on renders (status, next_attempt_at);
+  create table imports (
+    id text primary key,
+    device_id uuid not null references devices (id) on delete cascade,
+    status text not null default 'queued',
+    attempts integer not null default 0,
+    next_attempt_at timestamptz not null default now(),
+    input jsonb not null,
+    drafts jsonb not null default '[]',
+    failed_photo_count integer not null default 0,
+    simulated boolean not null default false,
+    error_message text,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+  );
+  create index imports_queue on imports (status, next_attempt_at);
+  `,
 ];
 
 export async function migrate() {
