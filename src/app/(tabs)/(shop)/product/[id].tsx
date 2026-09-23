@@ -144,7 +144,8 @@ function ProductDetails({ product }: { product: Product }) {
         image={product.images[0]}
         kind={product.kind}
         colorHex={product.color.hex}
-        aspectRatio={1.32}
+        aspectRatio={1}
+        contentFit="contain"
         illustrationScale={0.66}
         accessibilityLabel={`${product.title} in ${product.color.name}`}
       />

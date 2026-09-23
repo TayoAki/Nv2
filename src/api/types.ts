@@ -73,6 +73,8 @@ export type ProductPiece = {
   name: string;
   kind: GarmentKind;
   color: ColorInfo;
+  /** Colours measured from the photo, most dominant first; `color.hex` is the first. */
+  swatches: string[];
   pattern: string;
   material: string;
   formality: 'formal' | 'smart-casual' | 'casual';

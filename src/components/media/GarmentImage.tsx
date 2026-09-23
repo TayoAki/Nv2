@@ -66,6 +66,8 @@ export function GarmentImage({
         styles.frame,
         { aspectRatio, borderRadius: rounded },
         !bare && styles.well,
+        // House photos are shot on white; keep their frame white so the image edges disappear.
+        !bare && !!source && styles.photoWell,
         style,
       ]}
       accessible={!!label}
@@ -159,6 +161,9 @@ const styles = StyleSheet.create({
   },
   well: {
     backgroundColor: colors.media,
+  },
+  photoWell: {
+    backgroundColor: colors.white,
   },
   center: {
     ...StyleSheet.absoluteFill,

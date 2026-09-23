@@ -56,9 +56,10 @@ Each screen also has the alternative states listed in the screen index, such as 
 The Shop catalog is the real Nyoni capsule: 39 pieces making up 31 products, from `src/api/catalog/nyoni-capsule.json` (also kept as `.csv`).
 
 - **Pieces and products.** Each row is one wearable piece. A suit's jacket, trousers and waistcoat are separate rows that share `sold_as`, and the app groups them into one product with its pieces listed. Only the suit carries a price (`sold_as_price_usd`), so it's counted once.
-- **Photos.** Put each piece's photo in `assets/collection/` named `<key>.webp` (house photo) or `<key>.png` (cut-out, preferred), then run `npm run collection`. Pieces without a photo show a tinted illustration in their recorded colour.
-- **Corrections.** A few rows contradict their own description, for example a windowpane jacket exported as "solid". `CORRECTIONS` in `src/api/catalog/capsule.ts` fixes them so colour and pattern matching work; delete an entry to use the export's value.
-- **Still samples:** sizes and stock (the export has neither), and occasions, which are derived from formality and the product copy.
+- **Photos.** All 39 house photos are in `assets/collection/`, named `<key>.webp`. A transparent cut-out saved as `<key>.png` takes priority; after adding either, run `npm run collection`. A suit's parts share the photo of the whole suit until the cut-out pass separates them.
+- **Colour.** `hex_measured` holds up to three colours measured from each photo, most dominant first. The first is the piece's colour; all of them are kept as `swatches` for matching.
+- **Sizes and stock.** Sizes come from `sizes_available` and stock from `in_stock`. Where no sizes are listed (the Ivoire blazer, the trousers and the waistcoats), the product shows sample sizes with a note on the product page.
+- **Still derived:** occasions come from formality and the product copy.
 
 ## Demo mode
 
@@ -137,7 +138,7 @@ The plan's build sequence (F01–F14) lists backend and operational work as well
 
 | ID  | Outcome                                      | Front end status                                                                  |
 | --- | -------------------------------------------- | --------------------------------------------------------------------------------- |
-| F01 | Confirm store and prepare pilot assets       | Capsule of 31 real products loaded. Needs photos, sizes and stock.                |
+| F01 | Confirm store and prepare pilot assets       | Capsule of 31 real products with photos, measured colours, sizes and stock.      |
 | F02 | Browse real catalog and exact variants       | UI done: sizes, sold out, low stock, price changes.                               |
 | F03 | Upload and delete private photo              | UI done: consent, permissions, photo checks, deletion.                            |
 | F04 | Generate one resumable AI preview            | UI done: job polling, resume, cancel, timeout, failure, limit.                    |
@@ -156,6 +157,6 @@ The plan's build sequence (F01–F14) lists backend and operational work as well
 
 - **Design files.** The design handoff (plan PDF, screen index, manifest and gallery) is not in this repository because the repository is public. The 18 concept images were shared in chat and never saved as files.
 - **Copy.** Headlines such as "Your next entrance." come from the concept briefs. The screen index says concept copy is not yet approved, so it needs brand sign-off.
-- **Photography.** The Shop hero photo comes from the plan's cover. Replace it with licensed campaign photography. Capsule pieces show illustrations until their photos are added to `assets/collection`.
+- **Photography.** The Shop hero photo comes from the plan's cover. Replace it with licensed campaign photography. Capsule products use the house photos; suit parts still need cut-outs.
 - **Fonts.** Headings use Georgia (serif on Android) until the brand typefaces are confirmed.
 - **Testing.** The app has been verified in the web build with scripted browser flows, not yet on physical devices. There are no automated tests in the repository yet.

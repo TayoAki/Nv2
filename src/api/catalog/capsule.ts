@@ -7,7 +7,6 @@ import type {
   Product,
   ProductCategory,
   ProductPiece,
-  StockStatus,
   TryOnEligibility,
   Variant,
 } from '../types';
@@ -19,8 +18,8 @@ import capsuleRows from './nyoni-capsule.json';
  * (nyoni-capsule.json / .csv). Suits have one row per part (jacket, trousers, waistcoat)
  * sharing `sold_as`, and only the suit carries a price.
  *
- * Sizes and stock are not in the export yet, so every product gets sample sizes
- * (`sizesAreSamples`) until the store sync supplies real variants.
+ * `sizes_available` lists the sizes in stock. Where it's empty, the product gets sample
+ * sizes (`sizesAreSamples`) until the store sync supplies them.
  */
 
 export type CapsuleRow = {
@@ -30,12 +29,16 @@ export type CapsuleRow = {
   category: 'outerwear' | 'bottom' | 'vest' | 'shoes' | 'accessory';
   subcategory: string;
   colour: string;
-  colour_hex: string;
+  /** Up to three hex values measured from the photo, most dominant first. */
+  hex_measured: string;
   pattern: string;
   material: string;
   formality: 'formal' | 'smart-casual' | 'casual';
   fit: string;
   season: string;
+  in_stock: boolean;
+  /** Pipe-separated store size labels, e.g. "36US / 46EU | 38US / 48EU". Empty when not listed. */
+  sizes_available: string;
   price_usd: number | '';
   sold_as: string;
   sold_as_price_usd: number | '';
@@ -45,40 +48,10 @@ export type CapsuleRow = {
   description: string;
 };
 
-/**
- * Corrections where a row's attribute contradicts its own description (for example a
- * windowpane jacket exported as "solid"). Colour matching relies on these, so they're
- * applied here and listed for the Nyoni team to confirm. Delete an entry to use the
- * export's value.
- */
-const CORRECTIONS: Record<string, Partial<Pick<CapsuleRow, 'pattern' | 'material' | 'season'>>> = {
-  'nyoni-evano-windowpane-jacket': { pattern: 'windowpane' },
-  'nyoni-evano-windowpane-trousers': { pattern: 'windowpane' },
-  'nyoni-evano-windowpane-vest': { pattern: 'windowpane' },
-  'nyoni-perseo-jacket': { pattern: 'herringbone' },
-  'nyoni-perseo-trousers': { pattern: 'herringbone' },
-  'nyoni-vicenzo': { pattern: 'melange' },
-  'nyoni-james-blazer': { pattern: 'glen check' },
-  'nyoni-thomson-blazer': { season: 'spring summer autumn winter' },
-  'nyoni-ivoire-blazer-2': { season: 'spring summer autumn winter' },
-  'nyoni-hematite': { pattern: 'windowpane' },
-  'nyoni-gabbro': { pattern: 'marbled' },
-  'nyoni-monaco-cap-toe': { material: 'calfskin' },
-  'nyoni-silvano-2': { pattern: 'foliate print' },
-  'nyoni-belagio-2': { pattern: 'paisley' },
-  'nyoni-venez-2': { pattern: 'baroque print' },
-  'nyoni-serenata-2': { pattern: 'stripe' },
-  'nyoni-black-belt-2': { material: 'calfskin' },
-};
-
 const FEATURED = new Set(['p-nathan', 'p-navy-aztec-blazer']);
 
-/** Sample stock so the low-stock and sold-out states stay visible in the demo. */
-const SAMPLE_STOCK: Record<string, Record<string, { status: StockStatus; count: number }>> = {
-  'p-nathan': { '42': { status: 'low_stock', count: 1 }, '44': { status: 'out_of_stock', count: 0 } },
-};
-
-const SIZES: Record<'jacket' | 'waist' | 'shoes' | 'one', [string, string][]> = {
+/** Fallback sizes for products whose export lists none. */
+const SAMPLE_SIZES: Record<'jacket' | 'waist' | 'shoes' | 'one', [string, string][]> = {
   jacket: [
     ['38', '38 US / 48 EU'],
     ['40', '40 US / 50 EU'],
@@ -111,10 +84,6 @@ const PIECE_KIND: Record<CapsuleRow['category'], GarmentKind> = {
 const usd = (dollars: number): Money => ({ amountMinor: Math.round(dollars * 100), currency: 'USD' });
 
 const titleCase = (text: string) => text.replace(/\b\w/g, (c) => c.toUpperCase());
-
-function applyCorrections(row: CapsuleRow): CapsuleRow {
-  return { ...row, ...CORRECTIONS[row.key] };
-}
 
 function productId(rows: CapsuleRow[]): string {
   const [first] = rows;
@@ -151,11 +120,26 @@ function occasionsFor(rows: CapsuleRow[], title: string): Occasion[] {
   return [...set];
 }
 
-function sizesFor(kind: GarmentKind, row: CapsuleRow): [string, string][] {
-  if (row.subcategory === 'pocket square') return SIZES.one;
-  if (kind === 'shoes') return SIZES.shoes;
-  if (kind === 'trousers' || row.subcategory === 'belt') return SIZES.waist;
-  return SIZES.jacket;
+/** Store size labels as [code, label]: "36US / 46EU" → ["36", "36 US / 46 EU"]. */
+function listedSizes(row: CapsuleRow): [string, string][] {
+  return row.sizes_available
+    .split('|')
+    .map((size) => size.trim())
+    .filter(Boolean)
+    .map((size) => {
+      const code = size.match(/^[\d.]+/)?.[0] ?? size;
+      if (/^[\d.]+$/.test(size)) return [code, `Size ${size}`];
+      return [code, size.replace(/(\d)(US|EU|cm)\b/g, '$1 $2')];
+    });
+}
+
+function sizesFor(kind: GarmentKind, row: CapsuleRow): { sizes: [string, string][]; samples: boolean } {
+  if (row.subcategory === 'pocket square') return { sizes: SAMPLE_SIZES.one, samples: false };
+  const listed = listedSizes(row);
+  if (listed.length) return { sizes: listed, samples: false };
+  if (kind === 'shoes') return { sizes: SAMPLE_SIZES.shoes, samples: true };
+  if (kind === 'trousers' || row.subcategory === 'belt') return { sizes: SAMPLE_SIZES.waist, samples: true };
+  return { sizes: SAMPLE_SIZES.jacket, samples: true };
 }
 
 function tryOnFor(kind: GarmentKind): TryOnEligibility {
@@ -178,12 +162,17 @@ function imageFor(row: CapsuleRow): MediaImage | undefined {
   return asset ? { asset, alt: row.name } : undefined;
 }
 
+function swatches(row: CapsuleRow): string[] {
+  return row.hex_measured.split(/\s+/).filter((hex) => /^#[0-9a-f]{6}$/i.test(hex));
+}
+
 function toPiece(row: CapsuleRow): ProductPiece {
   return {
     key: row.key,
     name: row.name,
     kind: PIECE_KIND[row.category],
-    color: { name: titleCase(row.colour), hex: row.colour_hex },
+    color: { name: titleCase(row.colour), hex: swatches(row)[0] },
+    swatches: swatches(row),
     pattern: row.pattern,
     material: row.material,
     formality: row.formality,
@@ -195,8 +184,7 @@ function toPiece(row: CapsuleRow): ProductPiece {
 
 export function buildCapsuleCatalog(): Product[] {
   const byProduct = new Map<string, CapsuleRow[]>();
-  for (const raw of capsuleRows as CapsuleRow[]) {
-    const row = applyCorrections(raw);
+  for (const row of capsuleRows as CapsuleRow[]) {
     byProduct.set(row.product_url, [...(byProduct.get(row.product_url) ?? []), row]);
   }
 
@@ -210,23 +198,20 @@ export function buildCapsuleCatalog(): Product[] {
     const pieces = rows.map(toPiece);
     const kind: GarmentKind = isSuit ? 'suit' : pieces[0].kind;
     const color: ColorInfo = pieces[0].color;
-    const seen = new Set<number>();
-    const images = pieces
-      .map((piece) => piece.image)
-      .filter((image): image is MediaImage => !!image?.asset && !seen.has(image.asset) && !!seen.add(image.asset));
+    // Suit parts share the house photo of the whole suit, so the product shows it once.
+    const images = pieces[0].image ? [pieces[0].image] : [];
 
-    const variants: Variant[] = sizesFor(kind, first).map(([code, label]) => {
-      const stock = SAMPLE_STOCK[id]?.[code];
-      return {
-        id: `${id}-${code}`,
-        productId: id,
-        size: { code, label },
-        color,
-        price: usd(dollars),
-        stock: stock?.status ?? 'in_stock',
-        stockCount: stock?.count ?? 8,
-      };
-    });
+    const { sizes, samples } = sizesFor(kind, first);
+    const inStock = rows.every((row) => row.in_stock);
+    const variants: Variant[] = sizes.map(([code, label]) => ({
+      id: `${id}-${code}`,
+      productId: id,
+      size: { code, label },
+      color,
+      price: usd(dollars),
+      stock: inStock ? 'in_stock' : 'out_of_stock',
+      stockCount: inStock ? 8 : 0,
+    }));
 
     return {
       id,
@@ -245,7 +230,7 @@ export function buildCapsuleCatalog(): Product[] {
       featured: FEATURED.has(id),
       isIllustrative: false,
       pieces,
-      sizesAreSamples: true,
+      sizesAreSamples: samples,
       storeUrl: first.product_url,
     };
   });

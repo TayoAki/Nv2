@@ -32,7 +32,7 @@ export function SizeSelector({ variants, selectedId, onSelect, highlight = false
               disabled={soldOut}
               accessibilityLabel={`${variant.size.label}${soldOut ? ', sold out' : variant.stock === 'low_stock' ? ', low stock' : ''}`}
               onPress={() => onSelect(variant)}
-              style={[styles.chip, highlight && !selectedId && styles.highlight]}
+              style={[styles.chip, variants.length > 4 && styles.fixedChip, highlight && !selectedId && styles.highlight]}
             />
           );
         })}
@@ -58,6 +58,7 @@ const styles = StyleSheet.create({
   },
   chips: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: space.xs,
   },
   grid: {
@@ -66,6 +67,11 @@ const styles = StyleSheet.create({
   chip: {
     flexGrow: 1,
     flexBasis: 56,
+  },
+  // Long size runs wrap onto more rows at a steady width instead of squeezing.
+  fixedChip: {
+    flexGrow: 0,
+    minWidth: 64,
   },
   highlight: {
     borderColor: colors.error,
