@@ -102,6 +102,15 @@ Demo data is saved on the device (AsyncStorage, or localStorage on web). The cho
 - Saved previews expire after 30 days.
 - Sign-in links and checkout sessions expire after 15 minutes.
 
+## Live on Railway
+
+| Service | URL | Built from |
+| --- | --- | --- |
+| Web app (shop and store admin) | https://web-production-98e6c5.up.railway.app | `Dockerfile.web` |
+| API | https://api-production-b54e.up.railway.app | `server/Dockerfile` |
+
+Both deploy automatically from the `claude/bold-gauss-nclfml` branch. The web app redeploys when app files change (`src/`, `assets/`, `shared/`, `app.json`, `.env`, packages); the API redeploys when `server/` or `shared/` change. The store admin is at `/admin` on the web app.
+
 ## Server (Railway)
 
 `server/` is the Nyoni API: Node 22, Hono and Postgres, deployed on Railway from `server/Dockerfile`. So far it serves the catalog and the store admin; the other shopper features still run on the in-app demo backend.
