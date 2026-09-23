@@ -1,0 +1,25 @@
+import type { ProductQuery } from '@/api';
+
+export const keys = {
+  products: (query: ProductQuery = {}) => ['products', query] as const,
+  product: (id: string) => ['product', id] as const,
+  bag: ['bag'] as const,
+  tryOnRoot: ['try-on'] as const,
+  tryOn: (id: string) => ['try-on', 'job', id] as const,
+  activeTryOns: ['try-on', 'active'] as const,
+  look: (id: string) => ['look', id] as const,
+  savedLooks: ['looks', 'saved'] as const,
+  photos: ['photos'] as const,
+  receipt: (id: string) => ['receipt', id] as const,
+  wardrobeRoot: ['wardrobe'] as const,
+  wardrobe: ['wardrobe', 'list'] as const,
+  wardrobeItem: (id: string) => ['wardrobe', 'item', id] as const,
+  wardrobeImport: (id: string) => ['wardrobe', 'import', id] as const,
+  thread: ['stylist', 'thread'] as const,
+  outfitRoot: ['outfit'] as const,
+  outfit: (id: string) => ['outfit', id] as const,
+  savedOutfits: ['outfit', 'saved'] as const,
+  styleProfile: ['style-profile'] as const,
+  session: ['session'] as const,
+  privacy: ['privacy'] as const,
+};
