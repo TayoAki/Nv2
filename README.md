@@ -53,7 +53,7 @@ Each screen also has the alternative states listed in the screen index, such as 
 
 ## The Nyoni capsule
 
-The Shop catalog is the real Nyoni capsule: 39 pieces making up 31 products, from `src/api/catalog/nyoni-capsule.json` (also kept as `.csv`).
+The Shop catalog is the real Nyoni capsule: 39 pieces making up 31 products, from `shared/catalog/nyoni-capsule.json` (also kept as `.csv`). The app and the server build the catalog with the same code, `shared/catalog/capsule.ts`.
 
 - **Pieces and products.** Each row is one wearable piece. A suit's jacket, trousers and waistcoat are separate rows that share `sold_as`, and the app groups them into one product with its pieces listed. Only the suit carries a price (`sold_as_price_usd`), so it's counted once.
 - **Photos.** All 39 house photos are in `assets/collection/`, named `<key>.webp`. A transparent cut-out saved as `<key>.png` takes priority; after adding either, run `npm run collection`. A suit's parts share the photo of the whole suit until the cut-out pass separates them.
@@ -102,6 +102,27 @@ Demo data is saved on the device (AsyncStorage, or localStorage on web). The cho
 - Saved previews expire after 30 days.
 - Sign-in links and checkout sessions expire after 15 minutes.
 
+## Server (Railway)
+
+`server/` is the Nyoni API: Node 22, Hono and Postgres, deployed on Railway from `server/Dockerfile`. So far it serves the catalog and the store admin; the other shopper features still run on the in-app demo backend.
+
+- `GET /v1/catalog`: the capsule with staff edits applied (built with the same `shared/catalog` code as the app).
+- `POST /v1/admin/sessions`, `GET` / `DELETE /v1/admin/session`: staff sign-in with scrypt-hashed passwords. Session tokens are stored only as hashes and last 12 hours. Sign-in pauses after 5 failures per email or 20 per client.
+- `GET /v1/admin/products`, `PUT` / `DELETE /v1/admin/products/:id/inventory`: sizes, stock and price edits, validated and logged in `inventory_audit`.
+
+Point the app at it with `EXPO_PUBLIC_API_URL` (in `.env`, or set when building). The app then syncs the catalog from the server (at most every 30 seconds, and right after a staff edit), and the store admin signs in against the server.
+
+Server variables in Railway:
+
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | Railway Postgres connection (a reference to the Postgres service) |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | The first staff account, created or updated on deploy. The password must be 12+ characters; changing it signs that account out everywhere. |
+| `CORS_ORIGINS` | Web origins allowed to call the API (comma-separated), or `*` |
+| `OPENROUTER_API_KEY` | For the AI features in the next steps |
+
+Run it locally with `cd server && npm install && DATABASE_URL=… npm run dev`. Tests (`npm test`) need a Postgres database in `DATABASE_URL`.
+
 ## Feature status
 
 Status as of this build. "Working" means it works end to end against the demo backend in the app; "needs backend" means the screen and flow are done but need a real service.
@@ -109,7 +130,7 @@ Status as of this build. "Working" means it works end to end against the demo ba
 | Area | Status |
 | --- | --- |
 | All 18 screens and their alternative states | Working |
-| Shop catalog: 31 real products, photos, measured colours, sizes, stock | Working (data from the export; live WooCommerce sync not connected) |
+| Shop catalog: 31 real products, photos, measured colours, sizes, stock | Working; served by the Railway server with staff edits (live WooCommerce sync not connected) |
 | Product page, size picker, size guide, add to bag | Working |
 | Bag: quantities, price and stock changes, review before checkout | Working |
 | Checkout handoff and order status | Working with a demo checkout; the real WooCommerce checkout needs backend |
@@ -118,7 +139,7 @@ Status as of this build. "Working" means it works end to end against the demo ba
 | Stylist: outfits from your closet, follow-ups, Nyoni suggestions, saved outfits | Working with a rule-based demo stylist; Gemini (text and Live voice) needs backend |
 | Account: email sign-in link, recovery, guest migration, sign out | Working with a demo link; real email sending needs backend |
 | Style preferences, privacy controls, photo deletion | Working; deletion from real storage needs backend |
-| Store admin (web): staff sign-in, sizes, stock, prices | Working with a demo staff account; real staff auth and WooCommerce sync need backend |
+| Store admin (web): staff sign-in, sizes, stock, prices | Working on the Railway server (real staff accounts, shared edits); WooCommerce sync not connected |
 | Demo scenarios for failures and empty states | Working |
 | Tested on real iOS and Android devices | Not yet (Expo Go on iPhone loads the app) |
 | Automated tests in the repository | Not yet |

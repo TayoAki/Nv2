@@ -28,6 +28,7 @@ import type {
 } from '../types';
 
 import { applyInventory, buildCapsuleCatalog } from '../catalog/capsule';
+import { fetchCatalog, serverUrl } from '../server';
 import { getDb, persist, persistNow, resetDb, type JobScenario, type MockDb, type StoredJob, type StoredReceipt } from './db';
 import { COLORS } from './fixtures';
 import { recommend } from './stylistEngine';
@@ -66,7 +67,47 @@ async function request(kind: 'read' | 'write' | 'ai' = 'read'): Promise<MockDb> 
   if (current === 'offline') {
     throw new ApiError('network', "You're offline. Check your connection and try again.");
   }
-  return getDb();
+  const db = await getDb();
+  await syncCatalog(db);
+  return db;
+}
+
+/*
+ * With a server configured, products, sizes, stock and prices come from it; the rest of the
+ * demo backend (bag, try-on, closet, stylist) uses them from here. Refreshed at most every
+ * 30 seconds, and right after a staff edit.
+ */
+const CATALOG_REFRESH_MS = 30_000;
+let catalogFetchedAt = 0;
+let catalogSync: Promise<void> | null = null;
+
+export function invalidateCatalog() {
+  catalogFetchedAt = 0;
+}
+
+async function syncCatalog(db: MockDb) {
+  if (!serverUrl || Date.now() - catalogFetchedAt < CATALOG_REFRESH_MS) return;
+  catalogSync ??= (async () => {
+    try {
+      const products = await fetchCatalog();
+      const previous = new Map(db.products.map((product) => [product.id, product]));
+      db.products = products.map((product) => {
+        const old = previous.get(product.id);
+        if (!old) return product;
+        // Keep "the price has changed" visible on the product page after a staff price edit.
+        if (old.price.amountMinor !== product.price.amountMinor) return { ...product, previousPrice: old.price };
+        return old.previousPrice ? { ...product, previousPrice: old.previousPrice } : product;
+      });
+      catalogFetchedAt = Date.now();
+      persist();
+    } catch {
+      // Server unreachable: keep shopping on the last catalog and try again shortly.
+      catalogFetchedAt = Date.now() - CATALOG_REFRESH_MS + 5_000;
+    } finally {
+      catalogSync = null;
+    }
+  })();
+  await catalogSync;
 }
 
 /*
@@ -1201,7 +1242,11 @@ export const mockApi: NyoniApi = {
 
 /** Controls for the in-app demo menu. Not part of the production API. */
 export const demoControls = {
-  reset: (seed: 'demo' | 'empty') => resetDb(seed),
+  reset: async (seed: 'demo' | 'empty') => {
+    const db = await resetDb(seed);
+    invalidateCatalog();
+    return db;
+  },
 
   /** Raise the price of the first bag item so the bag shows the "price changed" review. */
   async simulateBagChanges() {

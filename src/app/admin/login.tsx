@@ -2,7 +2,7 @@ import { Redirect, router, useLocalSearchParams, type Href } from 'expo-router';
 import { useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
-import { apiMode, errorMessage } from '@/api';
+import { adminBackend, errorMessage } from '@/api';
 import { BrandLockup } from '@/components/brand/BrandLockup';
 import { Icon } from '@/components/icons/Icon';
 import { Screen } from '@/components/layout/Screen';
@@ -82,7 +82,7 @@ function AdminLogin() {
           <Button title="Sign in" onPress={submit} loading={signIn.isPending} disabled={!email.trim() || !password} />
           <Button title="Back to the shop" variant="link" tone="muted" onPress={() => router.replace('/shop')} />
 
-          {apiMode === 'demo' ? (
+          {adminBackend === 'demo' ? (
             <Card style={styles.demo}>
               <View style={styles.demoTitle}>
                 <Icon name="info" size={18} color={colors.bronze} />

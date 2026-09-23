@@ -1,0 +1,9 @@
+# Docker builds (the Railway server image) only need server/ and shared/.
+**/node_modules
+.git
+.expo
+dist
+assets
+src
+server/test
+*.log
