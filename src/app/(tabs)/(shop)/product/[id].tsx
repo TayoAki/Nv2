@@ -173,10 +173,12 @@ function ProductDetails({ product }: { product: Product }) {
       </View>
       <Divider />
 
-      <View style={styles.sizeRow}>
-        <View style={styles.sizeLabel}>
-          <AppText variant="bodyLarge">Size</AppText>
-          <Button title="Guide" variant="link" tone="muted" onPress={() => setSizeGuideOpen(true)} accessibilityLabel="Size guide" />
+      <View style={styles.sizeSection}>
+        <View style={styles.sizeHeader}>
+          <AppText variant="heading" accessibilityRole="header">
+            Size
+          </AppText>
+          <Button title="Size guide" variant="link" tone="muted" fullWidth={false} onPress={() => setSizeGuideOpen(true)} />
         </View>
         <SizeSelector
           variants={product.variants}
@@ -213,7 +215,7 @@ function ProductDetails({ product }: { product: Product }) {
           </View>
         )}
         <Button
-          title={variant ? 'Add to bag' : 'Choose size'}
+          title={variant ? `Add to bag · ${variant.size.code}` : 'Add to bag'}
           variant="outline"
           loading={addToBag.isPending}
           disabled={allSoldOut}
@@ -332,15 +334,13 @@ const styles = StyleSheet.create({
   storeLink: {
     alignSelf: 'flex-start',
   },
-  sizeRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: space.md,
+  sizeSection: {
+    gap: space.sm,
   },
-  sizeLabel: {
-    width: 52,
-    minHeight: 48,
-    justifyContent: 'center',
+  sizeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   actions: {
     gap: space.sm,

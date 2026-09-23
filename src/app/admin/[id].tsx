@@ -53,6 +53,13 @@ export default function AdminProductScreen() {
   );
 }
 
+const stockBadge = (count: number) =>
+  count === 0
+    ? ({ label: 'Sold out', tone: 'error' } as const)
+    : count <= 2
+      ? ({ label: 'Low stock', tone: 'notice' } as const)
+      : ({ label: 'In stock', tone: 'success' } as const);
+
 const formKey = (product: Product) =>
   `${product.price.amountMinor}:${product.variants.map((v) => `${v.id}=${v.stockCount}`).join(',')}`;
 
@@ -185,36 +192,37 @@ function InventoryForm({ product }: { product: Product }) {
               <View key={row.key}>
                 {index > 0 ? <Divider /> : null}
                 <View style={styles.sizeRow}>
+                  <View style={styles.sizeHeader}>
+                    <AppText variant="label" color={colors.muted}>
+                      Size {index + 1}
+                    </AppText>
+                    <IconButton
+                      icon="trash"
+                      accessibilityLabel={`Remove ${row.label || 'this size'}`}
+                      size={40}
+                      iconSize={20}
+                      onPress={() => setSizes((rows) => rows.filter((r) => r.key !== row.key))}
+                    />
+                  </View>
                   <TextField
                     value={row.label}
                     onChangeText={(label) => changeSize(row.key, { label })}
                     accessibilityLabel={`Size label ${index + 1}`}
-                    containerStyle={styles.sizeLabel}
                   />
-                  <QuantityStepper
-                    value={row.stockCount}
-                    min={0}
-                    max={999}
-                    itemName={`${row.label || 'this size'} stock`}
-                    onChange={(stockCount) => changeSize(row.key, { stockCount })}
-                  />
-                  <IconButton
-                    icon="trash"
-                    accessibilityLabel={`Remove ${row.label || 'this size'}`}
-                    size={40}
-                    iconSize={20}
-                    onPress={() => setSizes((rows) => rows.filter((r) => r.key !== row.key))}
-                  />
+                  <View style={styles.stockRow}>
+                    <AppText variant="label" color={colors.muted}>
+                      Stock
+                    </AppText>
+                    <QuantityStepper
+                      value={row.stockCount}
+                      min={0}
+                      max={999}
+                      itemName={`${row.label || 'this size'} stock`}
+                      onChange={(stockCount) => changeSize(row.key, { stockCount })}
+                    />
+                    <Badge {...stockBadge(row.stockCount)} />
+                  </View>
                 </View>
-                {row.stockCount === 0 ? (
-                  <AppText variant="caption" color={colors.error} style={styles.sizeNote}>
-                    Sold out
-                  </AppText>
-                ) : row.stockCount <= 2 ? (
-                  <AppText variant="caption" color={colors.bronze} style={styles.sizeNote}>
-                    Low stock
-                  </AppText>
-                ) : null}
               </View>
             ))
           )}
@@ -226,10 +234,19 @@ function InventoryForm({ product }: { product: Product }) {
             onChangeText={setNewSize}
             onSubmitEditing={addSize}
             returnKeyType="done"
+            label="Add a size"
             accessibilityLabel="New size label"
-            containerStyle={styles.sizeLabel}
           />
-          <Button title="Add" icon="plus" size="sm" variant="outline" fullWidth={false} onPress={addSize} disabled={!newSize.trim()} />
+          <Button
+            title="Add size"
+            icon="plus"
+            size="sm"
+            variant="outline"
+            fullWidth={false}
+            onPress={addSize}
+            disabled={!newSize.trim()}
+            style={styles.addButton}
+          />
         </View>
       </View>
 
@@ -273,22 +290,27 @@ const styles = StyleSheet.create({
     padding: space.md,
   },
   sizeRow: {
+    gap: space.sm,
+    paddingHorizontal: space.md,
+    paddingTop: space.xs,
+    paddingBottom: space.md,
+  },
+  stockRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.xs,
-    paddingHorizontal: space.sm,
-    paddingVertical: space.xs,
-  },
-  sizeLabel: {
-    flex: 1,
-  },
-  sizeNote: {
-    paddingHorizontal: space.sm,
-    paddingBottom: space.xs,
-  },
-  addRow: {
-    flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: space.sm,
+  },
+  sizeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: -space.xs,
+  },
+  addRow: {
+    gap: space.sm,
+  },
+  addButton: {
+    alignSelf: 'flex-start',
   },
 });
