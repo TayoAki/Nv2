@@ -64,6 +64,9 @@ export type TryOnEligibility = {
   reasonIfIneligible?: string;
 };
 
+/** A signed-in store admin (staff). Shoppers never get one. */
+export type AdminSession = { email: string; expiresAt: string };
+
 export type SizeSource = 'store' | 'placeholder' | 'admin';
 
 /** A size as edited in the admin panel; the stock status is derived from the count. */

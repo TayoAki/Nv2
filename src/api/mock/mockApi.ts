@@ -28,7 +28,7 @@ import type {
 } from '../types';
 
 import { applyInventory, buildCapsuleCatalog } from '../catalog/capsule';
-import { getDb, persist, resetDb, type JobScenario, type MockDb, type StoredJob, type StoredReceipt } from './db';
+import { getDb, persist, persistNow, resetDb, type JobScenario, type MockDb, type StoredJob, type StoredReceipt } from './db';
 import { COLORS } from './fixtures';
 import { recommend } from './stylistEngine';
 
@@ -67,6 +67,24 @@ async function request(kind: 'read' | 'write' | 'ai' = 'read'): Promise<MockDb> 
     throw new ApiError('network', "You're offline. Check your connection and try again.");
   }
   return getDb();
+}
+
+/*
+ * Demo staff account. Only the in-app demo backend knows it; the live admin signs in against
+ * the app server, and no staff credential ships in the app.
+ */
+const DEMO_STAFF = { email: 'staff@nyonicouture.com', password: 'nyoni-admin' };
+const ADMIN_SESSION_TTL = 12 * 60 * 60 * 1000;
+let adminFailures = 0;
+let adminLockUntil = 0;
+
+function activeAdminSession(db: MockDb) {
+  const session = db.adminSession;
+  return session && Date.parse(session.expiresAt) > now() ? session : null;
+}
+
+function requireAdmin(db: MockDb) {
+  if (!activeAdminSession(db)) throw new ApiError('unauthorized', 'Sign in to the store admin to continue.');
 }
 
 function notFound(message: string): never {
@@ -458,14 +476,48 @@ export const mockApi: NyoniApi = {
     return clone(findProduct(db, id));
   },
 
-  /* Admin panel */
+  /* Admin panel: staff only. */
+  async getAdminSession() {
+    const db = await request();
+    return clone(activeAdminSession(db));
+  },
+
+  async adminSignIn(email, password) {
+    const db = await request('write');
+    const lockedFor = adminLockUntil - now();
+    if (lockedFor > 0) {
+      throw new ApiError('unauthorized', `Too many attempts. Try again in ${Math.ceil(lockedFor / 1000)} seconds.`);
+    }
+    const normalized = email.trim().toLowerCase();
+    if (normalized !== DEMO_STAFF.email || password !== DEMO_STAFF.password) {
+      adminFailures += 1;
+      if (adminFailures >= 5) {
+        adminFailures = 0;
+        adminLockUntil = now() + 30_000;
+      }
+      throw new ApiError('unauthorized', "That email and password don't match a staff account.");
+    }
+    adminFailures = 0;
+    db.adminSession = { email: normalized, expiresAt: iso(now() + ADMIN_SESSION_TTL) };
+    await persistNow();
+    return clone(db.adminSession);
+  },
+
+  async adminSignOut() {
+    const db = await request('write');
+    db.adminSession = null;
+    await persistNow();
+  },
+
   async adminListProducts() {
     const db = await request();
+    requireAdmin(db);
     return clone(db.products);
   },
 
   async updateInventory(productId, update) {
     const db = await request('write');
+    requireAdmin(db);
     const index = db.products.findIndex((p) => p.id === productId);
     if (index === -1) notFound('This product is no longer in the catalog.');
     const sizes = update.sizes.map((size) => ({ label: size.label.trim(), stockCount: size.stockCount }));
@@ -492,6 +544,7 @@ export const mockApi: NyoniApi = {
 
   async resetInventory(productId) {
     const db = await request('write');
+    requireAdmin(db);
     const index = db.products.findIndex((p) => p.id === productId);
     const base = buildCapsuleCatalog().find((p) => p.id === productId);
     if (index === -1 || !base) notFound('This product is no longer in the catalog.');

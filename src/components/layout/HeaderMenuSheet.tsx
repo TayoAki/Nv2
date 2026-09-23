@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useNavigationContainerRef, type Href } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { apiMode, demoControls } from '@/api';
 import { Icon } from '@/components/icons/Icon';
@@ -87,12 +87,15 @@ export function HeaderMenuSheet() {
             Sample data only. Nothing is sent to a store or an AI provider. Pick a scenario to preview
             the alternative states from the screen index.
           </AppText>
-          <ListRow
-            icon="sliders"
-            title="Store admin"
-            subtitle="Sizes, stock and prices for each product (staff)"
-            onPress={() => go('/admin')}
-          />
+          {/* Staff tool on the web only; it isn't offered in the iOS and Android apps. */}
+          {Platform.OS === 'web' ? (
+            <ListRow
+              icon="sliders"
+              title="Store admin"
+              subtitle="Staff sign-in: sizes, stock and prices"
+              onPress={() => go('/admin')}
+            />
+          ) : null}
           <View style={styles.scenarios} accessibilityRole="radiogroup">
             {DEMO_SCENARIOS.map((option) => {
               const selected = option.value === scenario;

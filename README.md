@@ -63,7 +63,9 @@ The Shop catalog is the real Nyoni capsule: 39 pieces making up 31 products, fro
 
 ## Store admin
 
-Staff edit sizes, stock and prices at `/admin`: open the account menu, then **Store admin** under Demo mode.
+Staff edit sizes, stock and prices at `/admin`. The admin runs **on the web only**: the iOS and Android apps don't show the link, and the `/admin` pages redirect to the shop there. On the web, open `/admin` directly or use **Store admin** in the account menu.
+
+- **Sign-in:** every admin page and every admin API call needs a staff session. After 5 wrong passwords, sign-in pauses for 30 seconds, and a session lasts 12 hours. The demo staff account (`staff@nyonicouture.com` / `nyoni-admin`) exists only in the demo backend; the live admin will sign in against the store's server, and no staff credential ships in the app.
 
 - **Products list:** search, and filters for made-up sizes, edited products, and low or sold-out stock.
 - **Product editor:** set the price and each size's label and stock. Add or remove sizes, or reset to the store export. A stock of 2 or fewer shows shoppers "low stock"; 0 shows "sold out".
@@ -99,6 +101,27 @@ Demo data is saved on the device (AsyncStorage, or localStorage on web). The cho
 - Try-on photos and unsaved previews expire after 24 hours.
 - Saved previews expire after 30 days.
 - Sign-in links and checkout sessions expire after 15 minutes.
+
+## Feature status
+
+Status as of this build. "Working" means it works end to end against the demo backend in the app; "needs backend" means the screen and flow are done but need a real service.
+
+| Area | Status |
+| --- | --- |
+| All 18 screens and their alternative states | Working |
+| Shop catalog: 31 real products, photos, measured colours, sizes, stock | Working (data from the export; live WooCommerce sync not connected) |
+| Product page, size picker, size guide, add to bag | Working |
+| Bag: quantities, price and stock changes, review before checkout | Working |
+| Checkout handoff and order status | Working with a demo checkout; the real WooCommerce checkout needs backend |
+| Try-on photo flow: consent, upload, job progress, cancel, time-out, failure, limit, save, expiry | Working; the preview image is a placeholder until the render model (`gpt-image-2`) is connected |
+| Closet: add, import review, edit, archive, delete, duplicates | Working; photo recognition and cut-outs are simulated until the ingest pipeline is connected |
+| Stylist: outfits from your closet, follow-ups, Nyoni suggestions, saved outfits | Working with a rule-based demo stylist; Gemini (text and Live voice) needs backend |
+| Account: email sign-in link, recovery, guest migration, sign out | Working with a demo link; real email sending needs backend |
+| Style preferences, privacy controls, photo deletion | Working; deletion from real storage needs backend |
+| Store admin (web): staff sign-in, sizes, stock, prices | Working with a demo staff account; real staff auth and WooCommerce sync need backend |
+| Demo scenarios for failures and empty states | Working |
+| Tested on real iOS and Android devices | Not yet (Expo Go on iPhone loads the app) |
+| Automated tests in the repository | Not yet |
 
 ## Project structure
 

@@ -10,6 +10,7 @@ import type {
   OrderReceipt,
   PersonPhoto,
   PrivacyOverview,
+  AdminSession,
   InventoryUpdate,
   Product,
   ProductQuery,
@@ -80,6 +81,11 @@ export interface NyoniApi {
    * Admin panel (staff only): sizes, stock and price per product. Live: backed by the
    * WooCommerce REST API through the app server, which also pulls stock from the store.
    */
+  /** Staff sign-in for the admin panel (web only). Live: the app server's staff auth. */
+  getAdminSession(): Promise<AdminSession | null>;
+  adminSignIn(email: string, password: string): Promise<AdminSession>;
+  adminSignOut(): Promise<void>;
+  /** Admin methods reject with `unauthorized` without a valid staff session. */
   adminListProducts(): Promise<Product[]>;
   updateInventory(productId: string, update: InventoryUpdate): Promise<Product>;
   /** Drops admin edits and returns to the store export's sizes, stock and price. */

@@ -1,8 +1,9 @@
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { isNetworkError, type Product } from '@/api';
+import { isApiError, isNetworkError, type Product } from '@/api';
+import { AdminGate } from '@/components/admin/AdminGate';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { Screen } from '@/components/layout/Screen';
 import { GarmentImage } from '@/components/media/GarmentImage';
@@ -14,7 +15,7 @@ import { Chip } from '@/components/ui/Chip';
 import { Banner, StateView } from '@/components/ui/Feedback';
 import { TextField } from '@/components/ui/TextField';
 import { Icon } from '@/components/icons/Icon';
-import { useAdminProducts } from '@/data/admin';
+import { useAdminProducts, useAdminSession, useAdminSignOut } from '@/data/admin';
 import { formatMoney, pluralize } from '@/lib/format';
 import { colors, radius, space } from '@/theme';
 
@@ -34,7 +35,17 @@ const FILTERS: { value: Filter; label: string; test: (product: Product) => boole
  * until the WooCommerce sync is connected, then stock comes from the store.
  */
 export default function AdminScreen() {
+  return (
+    <AdminGate>
+      <AdminProducts />
+    </AdminGate>
+  );
+}
+
+function AdminProducts() {
   const products = useAdminProducts();
+  const session = useAdminSession();
+  const signOut = useAdminSignOut();
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
 
@@ -43,8 +54,24 @@ export default function AdminScreen() {
   const query = search.trim().toLowerCase();
   const shown = all.filter((p) => test(p) && (!query || p.title.toLowerCase().includes(query)));
 
+  // The staff session expired while the page was open.
+  if (isApiError(products.error) && products.error.code === 'unauthorized') return <Redirect href="/admin/login" />;
+
   return (
     <Screen header={<AppHeader left="back" fallbackHref="/shop" title="Store admin" />} contentStyle={styles.content}>
+      <View style={styles.account}>
+        <AppText variant="secondary" color={colors.muted} style={styles.accountText} numberOfLines={1}>
+          Signed in as {session.data?.email}
+        </AppText>
+        <Button
+          title="Sign out"
+          variant="link"
+          tone="ink"
+          fullWidth={false}
+          loading={signOut.isPending}
+          onPress={() => signOut.mutate(undefined, { onSuccess: () => router.replace('/admin/login') })}
+        />
+      </View>
       <View style={styles.intro}>
         <AppText variant="title" accessibilityRole="header">
           Sizes and stock
@@ -140,6 +167,15 @@ function ProductRow({ product }: { product: Product }) {
 const styles = StyleSheet.create({
   content: {
     gap: space.md,
+  },
+  account: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space.sm,
+  },
+  accountText: {
+    flex: 1,
   },
   intro: {
     gap: space.xxs,

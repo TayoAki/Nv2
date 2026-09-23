@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { DefaultTheme, Stack, ThemeProvider, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
@@ -30,6 +30,8 @@ const navigationTheme = {
 
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
+  // The web admin is a desktop tool, so it gets a wider frame than the phone-width shop.
+  const isAdmin = usePathname().startsWith('/admin');
 
   useEffect(() => {
     wireQueryEnvironment();
@@ -46,7 +48,7 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider value={navigationTheme}>
         <View style={styles.page}>
-          <View style={styles.app}>
+          <View style={[styles.app, isAdmin && styles.adminFrame]}>
             <Stack
               screenOptions={{
                 headerShown: false,
@@ -60,6 +62,7 @@ export default function RootLayout() {
               <Stack.Screen name="checkout" options={{ presentation: 'modal' }} />
               <Stack.Screen name="account" options={{ presentation: 'modal' }} />
               {/* Staff tool: sizes, stock and prices until the WooCommerce sync is live. */}
+              <Stack.Screen name="admin/login" />
               <Stack.Screen name="admin/index" />
               <Stack.Screen name="admin/[id]" />
             </Stack>
@@ -78,6 +81,9 @@ const styles = StyleSheet.create({
     backgroundColor: Platform.OS === 'web' ? '#E7E1D6' : colors.ivory,
   },
   // On web, keep the phone layout centered instead of stretching across a desktop window.
+  adminFrame: {
+    maxWidth: 880,
+  },
   app: {
     flex: 1,
     width: '100%',

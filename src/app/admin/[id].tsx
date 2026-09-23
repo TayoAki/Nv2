@@ -1,9 +1,10 @@
-import { useLocalSearchParams, useNavigation } from 'expo-router';
+import { Redirect, useLocalSearchParams, useNavigation } from 'expo-router';
 import { usePreventRemove } from 'expo-router/react-navigation';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { errorMessage, isNetworkError, type Product } from '@/api';
+import { errorMessage, isApiError, isNetworkError, type Product } from '@/api';
+import { AdminGate } from '@/components/admin/AdminGate';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { Screen } from '@/components/layout/Screen';
 import { GarmentImage } from '@/components/media/GarmentImage';
@@ -32,6 +33,14 @@ const SOURCE_NOTE: Record<Product['sizeSource'], string> = {
 
 /** Store admin · product — /admin/:id. Sizes, stock and price for one product. */
 export default function AdminProductScreen() {
+  return (
+    <AdminGate>
+      <AdminProduct />
+    </AdminGate>
+  );
+}
+
+function AdminProduct() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const product = useProduct(id);
 
@@ -77,6 +86,7 @@ function InventoryForm({ product }: { product: Product }) {
   const [sizes, setSizes] = useState<SizeRow[]>(() => initialSizes.map((size) => ({ ...size, key: rowKey() })));
   const [newSize, setNewSize] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   const dirty =
     price.trim() !== initialPrice ||
@@ -126,7 +136,10 @@ function InventoryForm({ product }: { product: Product }) {
       },
       {
         onSuccess: () => showToast('Saved. The shop now shows these sizes.'),
-        onError: (err) => setError(errorMessage(err)),
+        onError: (err) => {
+          if (isApiError(err) && err.code === 'unauthorized') setSessionExpired(true);
+          else setError(errorMessage(err));
+        },
       },
     );
   };
@@ -142,6 +155,8 @@ function InventoryForm({ product }: { product: Product }) {
   };
 
   const units = sizes.reduce((sum, row) => sum + row.stockCount, 0);
+
+  if (sessionExpired) return <Redirect href={{ pathname: '/admin/login', params: { next: `/admin/${product.id}` } }} />;
 
   return (
     <View style={styles.form}>
