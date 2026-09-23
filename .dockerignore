@@ -1,9 +1,10 @@
-# Docker builds (the Railway server image) only need server/ and shared/.
+# Shared by both Railway images (server/Dockerfile and Dockerfile.web), which build from the
+# repository root. Each Dockerfile copies only what it needs.
 **/node_modules
 .git
 .expo
 dist
-assets
-src
+dist-live
+web-build
 server/test
 *.log
