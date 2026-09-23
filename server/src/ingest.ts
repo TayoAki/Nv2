@@ -10,14 +10,30 @@ import { HttpError } from './errors';
 import { cropBox, sampleColours } from './images';
 
 const MAX_ATTEMPTS = 3;
-/** Cosine similarity at or above this means "probably the same piece". */
-const DUPLICATE_SIMILARITY = 0.92;
+/**
+ * A draft is flagged as "may already be in your closet" only when the kind of garment
+ * matches, the measured colours are close, and the descriptions are similar. Text alone
+ * can't tell pieces apart: with text-embedding-3-small, matching pairs scored 0.59–0.73 and
+ * different pieces up to 0.63 in testing, so colour and kind do most of the work.
+ */
+const DUPLICATE_SIMILARITY = 0.58;
+/** CIE76 ΔE: under about 20 reads as "the same colour" for photos of fabric. */
+const DUPLICATE_COLOUR_DISTANCE = 20;
 
 export const importRequestSchema = z.object({
   photoBlobIds: z.array(z.string().min(1).max(80)).min(1).max(8),
   /** The member's current closet, so near-identical pieces can be flagged. */
   existing: z
-    .array(z.object({ id: z.string().max(80), text: z.string().max(300) }))
+    .array(
+      z.object({
+        id: z.string().max(80),
+        text: z.string().max(300),
+        category: z.string().max(20).optional(),
+        /** "suit" covers jackets, trousers and waistcoats. */
+        kind: z.string().max(20).optional(),
+        hex: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+      }),
+    )
     .max(400)
     .default([]),
 });
@@ -47,6 +63,13 @@ export async function createImport(deviceId: string, body: unknown) {
     if (!(await ownedBlob(deviceId, blobId, ['closet']))) {
       throw new HttpError('validation', 'One of these photos has expired. Choose your photos again.');
     }
+  }
+  const recent = await pool.query<{ count: string }>(
+    "select count(*) from imports where device_id = $1 and created_at > now() - interval '1 hour'",
+    [deviceId],
+  );
+  if (Number(recent.rows[0].count) >= env.importsPerHour) {
+    throw new HttpError('quota', "You've added a lot of photos. Try again in a little while.");
   }
   const importId = id('imp');
   await pool.query('insert into imports (id, device_id, input) values ($1, $2, $3)', [importId, deviceId, JSON.stringify(parsed.data)]);
@@ -79,6 +102,33 @@ const cosine = (a: number[], b: number[]) => {
   return na && nb ? dot / Math.sqrt(na * nb) : 0;
 };
 
+function lab(hex: string): [number, number, number] {
+  const [r, g, b] = [1, 3, 5].map((i) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return c > 0.04045 ? ((c + 0.055) / 1.055) ** 2.4 : c / 12.92;
+  });
+  const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+  const x = f((r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.95047);
+  const y = f(r * 0.2126 + g * 0.7152 + b * 0.0722);
+  const z = f((r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.08883);
+  return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+}
+
+export const colourDistance = (a: string, b: string) => {
+  const [l1, a1, b1] = lab(a);
+  const [l2, a2, b2] = lab(b);
+  return Math.hypot(l1 - l2, a1 - a2, b1 - b2);
+};
+
+const SUIT_PARTS = new Set(['jackets', 'trousers', 'waistcoats']);
+
+/** Same kind of garment (a suit in the closet covers its jacket, trousers and waistcoat). */
+const sameKind = (draft: ImportDraft, other: { category?: string; kind?: string }) =>
+  !other.category || other.category === draft.category || (other.kind === 'suit' && SUIT_PARTS.has(draft.category));
+
+const closeColour = (draft: ImportDraft, hex: string | undefined) =>
+  !hex || draft.hexes.length === 0 || colourDistance(draft.hexes[0], hex) < DUPLICATE_COLOUR_DISTANCE;
+
 export const describeDraft = (d: Pick<ImportDraft, 'colour' | 'pattern' | 'material' | 'name' | 'category'>) =>
   `${d.colour} ${d.pattern} ${d.material} ${d.name} (${d.category})`.toLowerCase();
 
@@ -106,34 +156,38 @@ async function runImport(row: { id: string; device_id: string; attempts: number;
         failedPhotos += 1;
         continue;
       }
-      for (const item of items) {
-        let cutoutBlobId: string | null = null;
-        let hexes: string[] = [];
-        try {
-          const cutout = await provider.cutout(await cropBox(photo, item.box), item.name);
-          hexes = await sampleColours(cutout, 3);
-          cutoutBlobId = await putBlob(row.device_id, 'cutout', cutout);
-        } catch (error) {
-          if (error instanceof ProviderError && !error.permanent) throw error;
-          // No cut-out: keep the item with the original photo so the member can still review it.
-          hexes = await sampleColours(await cropBox(photo, item.box), 3).catch(() => []);
-        }
-        drafts.push({
-          id: id('d'),
-          photoIndex,
-          name: item.name,
-          category: item.category,
-          colour: item.colour,
-          hexes,
-          pattern: item.pattern,
-          material: item.material,
-          formality: item.formality,
-          confidence: item.confidence >= 0.7 ? 'high' : 'low',
-          cutoutBlobId,
-          duplicateOfItemId: null,
-          duplicateOfDraftId: null,
-        });
-      }
+      // Cut-outs take 15–30 seconds each, so a photo's pieces are cut out in parallel.
+      const made = await Promise.all(
+        items.map(async (item): Promise<ImportDraft> => {
+          let cutoutBlobId: string | null = null;
+          let hexes: string[] = [];
+          try {
+            const cutout = await provider.cutout(await cropBox(photo, item.box), item.name);
+            hexes = await sampleColours(cutout, 3);
+            cutoutBlobId = await putBlob(row.device_id, 'cutout', cutout);
+          } catch (error) {
+            if (error instanceof ProviderError && !error.permanent) throw error;
+            // No cut-out: keep the item with the original photo so the member can still review it.
+            hexes = await sampleColours(await cropBox(photo, item.box), 3).catch(() => []);
+          }
+          return {
+            id: id('d'),
+            photoIndex,
+            name: item.name,
+            category: item.category,
+            colour: item.colour,
+            hexes,
+            pattern: item.pattern,
+            material: item.material,
+            formality: item.formality,
+            confidence: item.confidence >= 0.7 ? 'high' : 'low',
+            cutoutBlobId,
+            duplicateOfItemId: null,
+            duplicateOfDraftId: null,
+          };
+        }),
+      );
+      drafts.push(...made);
     }
 
     // Near-identical pieces: against the closet first, then within this batch.
@@ -143,10 +197,17 @@ async function runImport(row: { id: string; device_id: string; attempts: number;
       const draftVectors = vectors.slice(0, drafts.length);
       const existingVectors = vectors.slice(drafts.length);
       drafts.forEach((draft, i) => {
-        const closet = existingVectors.findIndex((v) => cosine(draftVectors[i], v) >= DUPLICATE_SIMILARITY);
+        const closet = existing.findIndex(
+          (item, j) => sameKind(draft, item) && closeColour(draft, item.hex) && cosine(draftVectors[i], existingVectors[j]) >= DUPLICATE_SIMILARITY,
+        );
         if (closet !== -1) draft.duplicateOfItemId = existing[closet].id;
         else {
-          const earlier = draftVectors.slice(0, i).findIndex((v) => cosine(draftVectors[i], v) >= DUPLICATE_SIMILARITY);
+          const earlier = drafts
+            .slice(0, i)
+            .findIndex(
+              (other, j) =>
+                other.category === draft.category && closeColour(draft, other.hexes[0]) && cosine(draftVectors[i], draftVectors[j]) >= DUPLICATE_SIMILARITY,
+            );
           if (earlier !== -1) draft.duplicateOfDraftId = drafts[earlier].id;
         }
       });

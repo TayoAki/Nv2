@@ -9,6 +9,7 @@ import sharp from 'sharp';
 process.env.DATABASE_URL ??= 'postgres://postgres@localhost:55432/nyoni_ai_test?host=/tmp';
 process.env.RETRY_BASE_SECONDS = '0';
 process.env.FREE_CREDITS = '10';
+process.env.DEVICES_PER_HOUR = '1000';
 delete process.env.OPENROUTER_API_KEY;
 
 const { pool, migrate } = await import('../src/db');
@@ -328,12 +329,46 @@ describe('render requests to OpenRouter', () => {
     assert.equal(await credits(other), 10);
   });
 
+  it('keeps spending bounded', async () => {
+    // New devices per client address per hour.
+    const limit = env.devicesPerHour;
+    env.devicesPerHour = 2;
+    const register = () => call('/v1/devices', { method: 'POST', headers: { 'x-forwarded-for': '198.51.100.44' } });
+    assert.equal((await register()).status, 201);
+    assert.equal((await register()).status, 201);
+    const refused = await register();
+    assert.equal(refused.status, 429);
+    assert.equal((await refused.json()).error.code, 'quota');
+    env.devicesPerHour = limit;
+
+    // Preview images per day across everyone.
+    const daily = env.dailyImageLimit;
+    const device = await newDevice();
+    const person = await upload(device, 'person', await photo(600, 1200));
+    const { rows } = await pool.query("select count(*)::int as n from renders where created_at > now() - interval '24 hours'");
+    env.dailyImageLimit = rows[0].n + 1;
+    const res = await render(device, { personBlobId: person.blobId, garments: [BOOTS], count: 2 });
+    assert.equal(res.status, 429);
+    assert.match(res.body.error.message, /today's limit/);
+    assert.equal(await credits(device), 10);
+    env.dailyImageLimit = daily;
+  });
+
   it('rejects unknown catalog pieces and unregistered devices', async () => {
     const device = await newDevice();
     const person = await upload(device, 'person', await photo(600, 1200));
     const res = await render(device, { personBlobId: person.blobId, garments: [{ source: 'capsule', key: 'nope' }] });
     assert.equal(res.status, 400);
     assert.equal((await call('/v1/device', { device: 'not-a-token' })).status, 401);
+  });
+});
+
+describe('duplicate colour check', () => {
+  it('measures colour distance in Lab', async () => {
+    const { colourDistance } = await import('../src/ingest');
+    assert.ok(colourDistance('#15171C', '#2B2E3A') < 20, 'photo navy vs catalogue navy');
+    assert.ok(colourDistance('#1B1D27', '#B08A5B') > 20, 'navy vs camel');
+    assert.ok(colourDistance('#15171C', '#B22222') > 20, 'navy vs red');
   });
 });
 
@@ -360,9 +395,13 @@ describe('closet import with OpenRouter', () => {
     respond('/images', error(400, 'background transparent is not supported'));
 
     const existingText = 'navy solid wool navy wool blazer (jackets)';
-    const created = await (
-      await call('/v1/imports', { method: 'POST', device, json: { photoBlobIds: [shot.blobId], existing: [{ id: 'w-mine', text: existingText }] } })
-    ).json();
+    const existing = [
+      // Same text but another colour, or another kind of garment: not duplicates.
+      { id: 'w-red', text: existingText, category: 'jackets', hex: '#B22222' },
+      { id: 'w-mine', text: existingText, category: 'jackets', hex: '#C6C6C6' }, // the fake cut-out is light grey
+      { id: 'w-shoes', text: 'charcoal solid wool charcoal wool trousers (trousers)', category: 'shoes' },
+    ];
+    const created = await (await call('/v1/imports', { method: 'POST', device, json: { photoBlobIds: [shot.blobId], existing } })).json();
     await drain();
     const view = await (await call(`/v1/imports/${created.id}`, { device })).json();
     assert.equal(view.status, 'done', JSON.stringify(view));
@@ -374,7 +413,8 @@ describe('closet import with OpenRouter', () => {
     assert.equal((detect.response_format as { type: string }).type, 'json_schema');
 
     const cutouts = recorded.filter((r) => r.path === '/images');
-    assert.deepEqual(cutouts.map((c) => c.body.background), ['transparent', 'opaque', 'transparent']);
+    // Cut-outs run in parallel: two transparent requests, and one opaque retry after the refusal.
+    assert.deepEqual(cutouts.map((c) => c.body.background).sort(), ['opaque', 'transparent', 'transparent']);
     assert.ok(cutouts.every((c) => c.body.model === 'openai/gpt-image-1'));
 
     const [blazer, trousers] = view.drafts;

@@ -638,7 +638,15 @@ async function importOnServer(
   }
   if (uploaded.length === 0) return { drafts: [], failedPhotoCount: unreadable, simulated: false };
 
-  const existing = db.wardrobe.filter((item) => !item.archived).map((item) => ({ id: item.id, text: describeItem(item) }));
+  const existing = db.wardrobe
+    .filter((item) => !item.archived)
+    .map((item) => ({
+      id: item.id,
+      text: describeItem(item),
+      category: item.category,
+      kind: item.kind,
+      hex: item.color && /^#[0-9a-f]{6}$/i.test(item.color.hex) ? item.color.hex : undefined,
+    }));
   let job: ServerImport = await startImport(uploaded.map((u) => u.blobId), existing.slice(0, 400));
   const deadline = now() + IMPORT_TIMEOUT_MS;
   while (job.status === 'queued' || job.status === 'running') {

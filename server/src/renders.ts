@@ -81,6 +81,11 @@ export async function createRenderBatch(deviceId: string, body: unknown) {
     throw new HttpError('quota', "You've reached the preview limit for now. Previews are limited to keep them fair for everyone. Try again later.");
   }
 
+  const today = await pool.query<{ count: string }>("select count(*) from renders where created_at > now() - interval '24 hours'");
+  if (Number(today.rows[0].count) + input.count > env.dailyImageLimit) {
+    throw new HttpError('quota', "Previews are very popular today and we've reached today's limit. Please try again tomorrow.");
+  }
+
   const cost = input.count * CREDITS[input.quality];
   const prompt = renderPrompt(garments, {
     framing: framingOf(person.width, person.height),

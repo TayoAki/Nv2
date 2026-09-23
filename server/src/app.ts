@@ -15,7 +15,7 @@ import { errorBody, HttpError } from './errors';
 import { framingOf, normalizeImage } from './images';
 import { createImport, importView } from './ingest';
 import { createRenderBatch, keepRenderBatch, renderBatchView } from './renders';
-import { recommend, stylistRequestSchema } from './stylist';
+import { allowStylistMessage, recommend, stylistRequestSchema } from './stylist';
 
 type Env = { Variables: { staff: StaffSession; token: string; device: Device } };
 
@@ -111,7 +111,7 @@ export function createApp() {
   });
 
   /* Shopper devices */
-  app.post('/v1/devices', async (c) => c.json(await createDevice(), 201));
+  app.post('/v1/devices', async (c) => c.json(await createDevice(clientKey(c)), 201));
 
   /* Images: the long random id is the permission to read. */
   app.get('/v1/blobs/:id', async (c) => {
@@ -149,6 +149,9 @@ export function createApp() {
   shopper.get('/imports/:id', async (c) => c.json(await importView(c.get('device').id, c.req.param('id'))));
 
   shopper.post('/stylist', async (c) => {
+    if (!allowStylistMessage(c.get('device').id)) {
+      throw new HttpError('quota', "You've sent a lot of messages. Your stylist will be back in a little while.");
+    }
     const parsed = stylistRequestSchema.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) throw new HttpError('validation', 'Ask your stylist something first.');
     return c.json(await recommend(parsed.data));

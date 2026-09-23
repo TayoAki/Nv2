@@ -28,6 +28,15 @@ export const env = {
   /** Render batches a device may start per hour. */
   rendersPerHour: Number(process.env.RENDERS_PER_HOUR ?? 20),
   renderConcurrency: Number(process.env.RENDER_CONCURRENCY ?? 2),
+  /*
+   * Spending guards for a public app (each render is about $0.07 on OpenRouter): new devices
+   * per client address per hour, preview images per day across everyone, and per-device
+   * limits for photo imports and stylist messages.
+   */
+  devicesPerHour: Number(process.env.DEVICES_PER_HOUR ?? 5),
+  dailyImageLimit: Number(process.env.DAILY_IMAGE_LIMIT ?? 300),
+  importsPerHour: Number(process.env.IMPORTS_PER_HOUR ?? 10),
+  stylistPerHour: Number(process.env.STYLIST_PER_HOUR ?? 60),
   /** Retry delay grows as base × attempts² seconds (5 s, 20 s, …). */
   retryBaseSeconds: Number(process.env.RETRY_BASE_SECONDS ?? 5),
   /** Where the capsule photos live (copied into the image from assets/collection). */

@@ -152,7 +152,9 @@ export const getRender = (id: string) => asDevice<RenderBatch>(`/v1/renders/${en
 
 export const keepRender = (id: string) => asDevice<{ kept: number }>(`/v1/renders/${encodeURIComponent(id)}/keep`, { method: 'POST' });
 
-export const startImport = (photoBlobIds: string[], existing: { id: string; text: string }[]) =>
+export type ClosetReference = { id: string; text: string; category?: string; kind?: string; hex?: string };
+
+export const startImport = (photoBlobIds: string[], existing: ClosetReference[]) =>
   asDevice<ServerImport>('/v1/imports', { method: 'POST', body: { photoBlobIds, existing } });
 
 export const getImport = (id: string) => asDevice<ServerImport>(`/v1/imports/${encodeURIComponent(id)}`);

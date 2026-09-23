@@ -107,6 +107,13 @@ const MIGRATIONS: string[] = [
   );
   create index imports_queue on imports (status, next_attempt_at);
   `,
+  // 3: limits that keep AI spending bounded on a public app.
+  `
+  alter table devices add column client_hash text;
+  create index devices_client_created on devices (client_hash, created_at);
+  create index renders_created on renders (created_at);
+  create index imports_device_created on imports (device_id, created_at);
+  `,
 ];
 
 export async function migrate() {

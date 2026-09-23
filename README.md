@@ -124,13 +124,27 @@ AI features (all through OpenRouter, one key):
 - `GET /v1/ai/status`: which provider is live (`openrouter` or `simulated`) and whether the stylist is available.
 - `POST /v1/devices`: registers an anonymous app install and returns a device token (stored only as a hash) with 10 free preview credits.
 - `POST /v1/uploads?kind=person|closet`: raw photo bytes. JPEG, PNG or WebP only, rotated upright, at most 2048 px on the long edge. Try-on photos expire after 24 hours.
-- `POST /v1/renders`, `GET /v1/renders/:id`, `POST /v1/renders/:id/keep`: try-on as an **image edit** with `openai/gpt-image-2`. The request holds the member photo and up to 15 garment references (capsule pieces by key, closet cut-outs, or a text description). A suit is always sent whole. Credits are reserved up front (1 standard, 3 HQ). Each image is a queued job with up to 3 attempts; a moderation or bad-request failure settles at once, and failed images are refunded. The prompt names every reference and its layer, fills gaps (white shirt, charcoal trousers, black shoes), keeps the person's identity and body, and fixes headshot framing ("the head is roughly one seventh to one eighth of total height"). `input_fidelity` is never sent. About $0.03 and 30–50 seconds per image. Saving a look keeps its render for 30 days.
+- `POST /v1/renders`, `GET /v1/renders/:id`, `POST /v1/renders/:id/keep`: try-on as an **image edit** with `openai/gpt-image-2`. The request holds the member photo and up to 15 garment references (capsule pieces by key, closet cut-outs, or a text description). A suit is always sent whole. Credits are reserved up front (1 standard, 3 HQ). Each image is a queued job with up to 3 attempts; a moderation or bad-request failure settles at once, and failed images are refunded. The prompt names every reference and its layer, fills gaps (white shirt, charcoal trousers, black shoes), keeps the person's identity and body, and fixes headshot framing ("the head is roughly one seventh to one eighth of total height"). `input_fidelity` is never sent. Measured with the real model: about $0.07 and 30 seconds per image (the reference photos count as input). Saving a look keeps its render for 30 days.
 - `POST /v1/imports`, `GET /v1/imports/:id`: closet photo import. `openai/gpt-5-mini` finds each piece with a bounding box (structured output). `openai/gpt-image-1` makes a transparent cut-out, and falls back to opaque if transparency is refused. Colours are sampled from the cut-out, and `openai/text-embedding-3-small` flags pieces already in the closet.
 - `POST /v1/stylist`: `google/gemini-3.8-flash` with tools (`search_catalog`, `propose_outfit`, `report_no_match`). Every proposal is checked (real closet ids, suits worn whole, trousers and shoes, focus piece, owned-only, in stock, budget), and a rejected proposal goes back to the model to fix.
 
 **Without `OPENROUTER_API_KEY` the server simulates renders and imports.** Uploads, credits, the queue, retries, refunds, colour sampling and duplicates all run for real. The images are clearly labelled placeholders ("Simulated preview"), and the app shows a "Simulated" notice. The stylist stays on the app's rule-based engine until the key is set. **Adding the key in Railway (api service → Variables) switches everything to the real models with no code change.** Gemini Live voice isn't on OpenRouter; it needs a Google AI Studio key.
 
-Model names can be changed with `OPENROUTER_RENDER_MODEL`, `OPENROUTER_CUTOUT_MODEL`, `OPENROUTER_VISION_MODEL`, `OPENROUTER_EMBEDDING_MODEL` and `OPENROUTER_STYLIST_MODEL`. `FREE_CREDITS`, `RENDERS_PER_HOUR` and `RENDER_CONCURRENCY` tune the limits.
+Model names can be changed with `OPENROUTER_RENDER_MODEL`, `OPENROUTER_CUTOUT_MODEL`, `OPENROUTER_VISION_MODEL`, `OPENROUTER_EMBEDDING_MODEL` and `OPENROUTER_STYLIST_MODEL`. Spending limits, because the web app is public and each device gets free credits:
+
+| Variable | Default | Limit |
+| --- | --- | --- |
+| `FREE_CREDITS` | 10 | Credits a new device starts with (1 per standard preview) |
+| `DEVICES_PER_HOUR` | 5 | New devices per client address per hour |
+| `DAILY_IMAGE_LIMIT` | 300 | Preview images per 24 hours across everyone (about $21) |
+| `RENDERS_PER_HOUR` | 20 | Preview requests per device per hour |
+| `IMPORTS_PER_HOUR` | 10 | Photo imports per device per hour |
+| `STYLIST_PER_HOUR` | 60 | Stylist messages per device per hour |
+| `RENDER_CONCURRENCY` | 2 | Renders in flight at once |
+
+Also set a credit limit on the key in OpenRouter as a backstop.
+
+Tested with the real models: renders keep the member's face and build and pull back to a full-length studio shot; a whole outfit (blazer, trousers, boots) renders in one image; a closet photo of a suited man imports as five pieces (jacket, trousers, shirt, tie, pocket square) with transparent cut-outs in about 40 seconds, and the jacket and trousers are flagged as possibly the navy suit already in the closet; the stylist builds looks from the 16-piece closet, respects the focus piece and owned-only, and suggests the Sovereign tuxedo for black tie.
 
 The app points at the live server through `EXPO_PUBLIC_API_URL` in `.env` (`https://api-production-b54e.up.railway.app`). After changing it, restart with `npx expo start --clear`, because the value is baked into the bundle. Delete the line to run on the demo backend only. The app then syncs the catalog from the server (at most every 30 seconds, and right after a staff edit), and the store admin signs in against the server.
 
@@ -143,7 +157,7 @@ Server variables in Railway:
 | `CORS_ORIGINS` | Web origins allowed to call the API (comma-separated), or `*` |
 | `OPENROUTER_API_KEY` | Turns on the real AI models (renders, import, stylist). Without it, renders and imports are simulated. |
 
-Run it locally with `cd server && npm install && DATABASE_URL=… npm run dev`. Tests (`npm test`) need a Postgres database in `DATABASE_URL`. They cover the catalog, staff sessions and inventory, plus the AI pipeline against a fake OpenRouter: request shapes, prompts, retries, refunds, credits, cut-out fallback, duplicates and stylist validation (30 tests).
+Run it locally with `cd server && npm install && DATABASE_URL=… npm run dev`. Tests (`npm test`) need a Postgres database in `DATABASE_URL`. They cover the catalog, staff sessions and inventory, plus the AI pipeline against a fake OpenRouter: request shapes, prompts, retries, refunds, credits, cut-out fallback, duplicates and stylist validation (32 tests).
 
 ## Feature status
 
@@ -165,7 +179,7 @@ Status as of this build. "Working" means it works end to end against the demo ba
 | Store admin (web): staff sign-in, sizes, stock, prices | Working on the Railway server (real staff accounts, shared edits); WooCommerce sync not connected |
 | Demo scenarios for failures and empty states | Working |
 | Tested on real iOS and Android devices | Not yet (Expo Go on iPhone loads the app) |
-| Automated tests in the repository | Server: 30 tests (`cd server && npm test`). App: Playwright flows run during development, not yet in the repo |
+| Automated tests in the repository | Server: 32 tests (`cd server && npm test`). App: Playwright flows run during development, not yet in the repo |
 
 ## Project structure
 

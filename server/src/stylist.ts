@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { aiProvider, type ChatMessage, type ToolDefinition } from './ai';
 import { currentCatalog } from './catalog';
+import { env } from './env';
 import { HttpError } from './errors';
 
 const OCCASIONS = ['business', 'dinner', 'wedding', 'everyday', 'black-tie'] as const;
@@ -111,13 +112,34 @@ Rules:
 - Neutrals (navy, charcoal, grey, black, white, ivory, taupe) pair freely. Keep a clear difference in lightness between jacket and trousers unless they are a matched suit.
 - Avoid near-miss matches (two slightly different navies). At most one bold colour or strong pattern per outfit.
 - Keep formality consistent. Black tie needs a tuxedo or formal pieces; never pass a blazer off as black tie.
-- ${input.ownedOnly ? 'The member wants owned items only: do not suggest store products.' : 'You may add one optional Nyoni add-on found with search_catalog, if it genuinely helps.'}
+- ${
+    input.ownedOnly
+      ? 'The member wants owned items only: do not suggest store products.'
+      : 'You may add one optional Nyoni add-on found with search_catalog, if it genuinely helps. An add-on must bring something the outfit lacks, never a second piece of a type it already has (no second pocket square, belt or pair of shoes).'
+  }
+- ${
+    input.ownedOnly
+      ? 'If the closet cannot meet the request, call report_no_match and say what is missing.'
+      : 'If the closet cannot meet the request (for example black tie without a tuxedo), call search_catalog for the piece that would solve it, then call report_no_match with that product as suggestedProductId.'
+  }
 - Style direction: ${input.profile.styleDirection}. Usual occasions: ${input.profile.occasions.join(', ') || 'not set'}.${input.profile.budgetMinor ? ` Budget per add-on: $${(input.profile.budgetMinor / 100).toFixed(0)}.` : ''}
 ${input.focusItemId ? `- Build the outfit around closet item ${input.focusItemId}.` : ''}
 Always finish by calling propose_outfit or report_no_match.
 
 Closet (available):
 ${closet || '(empty)'}`;
+}
+
+const stylistUse = new Map<string, number[]>();
+
+/** Messages per device per hour (in memory: the API runs as one instance). */
+export function allowStylistMessage(deviceId: string): boolean {
+  const hourAgo = Date.now() - 60 * 60 * 1000;
+  const recent = (stylistUse.get(deviceId) ?? []).filter((t) => t > hourAgo);
+  if (recent.length >= env.stylistPerHour) return false;
+  recent.push(Date.now());
+  stylistUse.set(deviceId, recent);
+  return true;
 }
 
 export async function recommend(input: StylistRequest): Promise<StylistResponse> {

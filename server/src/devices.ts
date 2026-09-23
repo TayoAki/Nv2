@@ -14,11 +14,20 @@ export type Device = { id: string; credits: number };
 
 const hash = (token: string) => createHash('sha256').update(token).digest('hex');
 
-export async function createDevice() {
+/** Each new device gets free credits, so registrations are limited per client address. */
+export async function createDevice(clientKey: string) {
+  const clientHash = hash(`client:${clientKey}`);
+  const recent = await pool.query<{ count: string }>(
+    "select count(*) from devices where client_hash = $1 and created_at > now() - interval '1 hour'",
+    [clientHash],
+  );
+  if (Number(recent.rows[0].count) >= env.devicesPerHour) {
+    throw new HttpError('quota', 'Too many new sessions from this network. Try again in an hour.');
+  }
   const token = randomBytes(32).toString('base64url');
   const { rows } = await pool.query<Device>(
-    'insert into devices (token_hash, credits) values ($1, $2) returning id, credits',
-    [hash(token), env.freeCredits],
+    'insert into devices (token_hash, credits, client_hash) values ($1, $2, $3) returning id, credits',
+    [hash(token), env.freeCredits, clientHash],
   );
   return { token, credits: rows[0].credits };
 }
