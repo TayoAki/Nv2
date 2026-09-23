@@ -8,6 +8,7 @@ import type {
   ColorInfo,
   GarmentKind,
   GarmentRef,
+  TryOnFailureCode,
   Look,
   Money,
   Outfit,
@@ -58,6 +59,17 @@ export type StoredJob = {
   createdAt: string;
   cancelledAt?: string;
   lookId?: string;
+  /** Render batch on the Nyoni server, and its last known state. */
+  server?: {
+    batchId: string;
+    status: 'running' | 'done' | 'partial' | 'failed';
+    processing: boolean;
+    resultUrl: string | null;
+    errorCode: string | null;
+    simulated: boolean;
+  };
+  /** Settled before any work started (e.g. no credits left). */
+  failureCode?: TryOnFailureCode;
 };
 
 export type StoredHandoff = {

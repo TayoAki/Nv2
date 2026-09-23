@@ -7,6 +7,13 @@ import { keys } from './keys';
 /** Recorded with each upload so consent can be traced to the wording the shopper saw. */
 export const PHOTO_CONSENT_VERSION = '2026-09-v1';
 
+/** Route params for the photo step that start a new preview of the same garment or outfit. */
+export function photoParamsFor(garment: GarmentRef): { productId: string } | { closetItemId: string } | { outfitId: string } {
+  if (garment.kind === 'product') return { productId: garment.productId };
+  if (garment.kind === 'closet') return { closetItemId: garment.itemId };
+  return { outfitId: garment.outfitId };
+}
+
 export function isTerminalJobState(state: TryOnJobState) {
   return state === 'succeeded' || state === 'failed' || state === 'cancelled' || state === 'expired';
 }
@@ -37,6 +44,7 @@ export function useStartTryOn() {
       queryClient.invalidateQueries({ queryKey: keys.activeTryOns });
       queryClient.invalidateQueries({ queryKey: keys.photos });
       queryClient.invalidateQueries({ queryKey: keys.privacy });
+      queryClient.invalidateQueries({ queryKey: keys.previewCredits });
     },
   });
 }
@@ -53,6 +61,10 @@ export function useTryOnJob(id: string | undefined | null) {
     },
     refetchIntervalInBackground: false,
   });
+}
+
+export function usePreviewCredits() {
+  return useQuery({ queryKey: keys.previewCredits, queryFn: () => api.getPreviewCredits() });
 }
 
 export function useActiveTryOns() {

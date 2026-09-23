@@ -142,6 +142,8 @@ export type PersonPhoto = {
   /** Device-local preview of the private upload. Never logged or sent to analytics. */
   localUri: string;
   consentVersion: string;
+  /** Server copy used for renders (set when the app is connected to the Nyoni server). */
+  serverBlobId?: string;
   createdAt: string;
   expiresAt: string;
 };
@@ -163,7 +165,11 @@ export type TryOnFailureCode =
   | 'multiple_people'
   | 'photo_expired';
 
-export type GarmentRef = { kind: 'product'; productId: string } | { kind: 'closet'; itemId: string };
+export type GarmentRef =
+  | { kind: 'product'; productId: string }
+  | { kind: 'closet'; itemId: string }
+  /** The whole outfit at once: every piece is a reference in one render. */
+  | { kind: 'outfit'; outfitId: string };
 
 export type TryOnJob = {
   id: string;
@@ -191,6 +197,10 @@ export type Look = {
   garmentColor: ColorInfo;
   /** Generated image. Undefined in demo mode, where no provider is connected. */
   resultImage?: MediaImage;
+  /** The server's placeholder render: AI rendering isn't connected yet. */
+  simulated?: boolean;
+  /** Server render batch, kept longer when the look is saved. */
+  serverBatchId?: string;
   originalPhotoUri?: string;
   scopeNote?: string;
   saved: boolean;
@@ -309,6 +319,8 @@ export type ImportDraft = {
   suggestion: ImportSuggestion;
   confidence: 'high' | 'low';
   duplicateOfItemId?: string;
+  /** Server cut-out made by the photo import pipeline; used as the render reference. */
+  cutoutBlobId?: string;
   status: 'ready' | 'saved' | 'discarded';
 };
 
@@ -317,6 +329,8 @@ export type WardrobeImport = {
   drafts: ImportDraft[];
   failedPhotoCount: number;
   manual: boolean;
+  /** Drafts came from the server's simulated import (AI isn't connected yet). */
+  simulated?: boolean;
   createdAt: string;
 };
 

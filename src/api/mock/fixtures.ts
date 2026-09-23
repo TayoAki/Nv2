@@ -1,6 +1,5 @@
 import type {
   ColorInfo,
-  GarmentKind,
   Look,
   Money,
   Outfit,

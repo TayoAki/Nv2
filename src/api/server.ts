@@ -13,42 +13,59 @@ export const serverUrl = process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, '') ||
 
 const TOKEN_KEY = 'nyoni.admin-token';
 const TIMEOUT_MS = 15_000;
-const SERVER_CODES: ApiErrorCode[] = ['validation', 'not_found', 'unauthorized', 'conflict', 'server'];
+const SERVER_CODES: ApiErrorCode[] = ['validation', 'not_found', 'unauthorized', 'conflict', 'quota', 'unavailable', 'server'];
 
-async function readToken() {
+/** Session tokens are kept in AsyncStorage; the key names who they belong to. */
+export async function readStored(key: string) {
   try {
-    return await AsyncStorage.getItem(TOKEN_KEY);
+    return await AsyncStorage.getItem(key);
   } catch {
     return null;
   }
 }
 
-async function writeToken(token: string | null) {
+export async function writeStored(key: string, value: string | null) {
   try {
-    if (token) await AsyncStorage.setItem(TOKEN_KEY, token);
-    else await AsyncStorage.removeItem(TOKEN_KEY);
+    if (value) await AsyncStorage.setItem(key, value);
+    else await AsyncStorage.removeItem(key);
   } catch {
-    // Storage unavailable (private window): the session lasts until the page closes.
+    // Storage unavailable (private window): the token lasts until the page closes.
   }
 }
 
-async function http<T>(path: string, init: { method?: string; body?: unknown; auth?: boolean } = {}): Promise<T> {
+const readToken = () => readStored(TOKEN_KEY);
+const writeToken = (token: string | null) => writeStored(TOKEN_KEY, token);
+
+export type HttpInit = {
+  method?: string;
+  /** JSON body, or raw bytes (photo uploads). */
+  body?: unknown;
+  /** Staff bearer token from the admin sign-in. */
+  auth?: boolean;
+  /** Shopper device token (`Authorization: Device …`). */
+  device?: string;
+  timeoutMs?: number;
+};
+
+export async function http<T>(path: string, init: HttpInit = {}): Promise<T> {
   if (!serverUrl) throw new ApiError('unavailable', 'The Nyoni server isn’t configured.');
   const headers: Record<string, string> = {};
-  if (init.body !== undefined) headers['content-type'] = 'application/json';
+  const raw = typeof Blob !== 'undefined' && init.body instanceof Blob;
+  if (init.body !== undefined) headers['content-type'] = raw ? (init.body as Blob).type || 'image/jpeg' : 'application/json';
   if (init.auth) {
     const token = await readToken();
     if (!token) throw new ApiError('unauthorized', 'Sign in to the store admin to continue.');
     headers.authorization = `Bearer ${token}`;
   }
+  if (init.device) headers.authorization = `Device ${init.device}`;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), init.timeoutMs ?? TIMEOUT_MS);
   let response: Response;
   try {
     response = await fetch(`${serverUrl}${path}`, {
       method: init.method ?? 'GET',
       headers,
-      body: init.body === undefined ? undefined : JSON.stringify(init.body),
+      body: init.body === undefined ? undefined : raw ? (init.body as Blob) : JSON.stringify(init.body),
       signal: controller.signal,
       // The app decides how often to refresh (the catalog sync); never reuse a stale response.
       cache: 'no-store',

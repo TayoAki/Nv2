@@ -96,6 +96,9 @@ export interface NyoniApi {
   listPhotos(): Promise<PersonPhoto[]>;
   deletePhoto(id: string): Promise<{ providerCleanup: 'done' | 'retrying' }>;
 
+  /** Preview credits left on this device (1 per preview), or null when previews aren't metered. */
+  getPreviewCredits(): Promise<number | null>;
+
   /* Try-on jobs: POST /try-ons, GET /try-ons/:id, POST /try-ons/:id/cancel */
   createTryOn(input: { photoId: string; garment: GarmentRef; idempotencyKey: string }): Promise<TryOnJob>;
   getTryOn(id: string): Promise<TryOnJob>;

@@ -190,8 +190,17 @@ function OutfitBody({ outfit }: { outfit: ResolvedOutfit }) {
           onPress={toggleSaved}
         />
         <Button
-          title="Choose an item to try on"
+          title="See the whole outfit on me"
+          icon="account"
           variant="outline"
+          disabled={!canTryOn || needsAttention}
+          onPress={() => router.push({ pathname: '/photo', params: { outfitId: outfit.id } })}
+          accessibilityHint="Creates one AI preview with every piece of this outfit"
+        />
+        <Button
+          title="Choose one item to try on"
+          variant="link"
+          tone="ink"
           disabled={!canTryOn}
           onPress={() => router.push({ pathname: '/try-on', params: { source: 'closet', outfitId: outfit.id } })}
         />

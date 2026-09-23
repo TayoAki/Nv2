@@ -15,7 +15,8 @@ import { Checkbox } from '@/components/ui/Checkbox';
 import { Banner, StateView } from '@/components/ui/Feedback';
 import { useWardrobeItem } from '@/data/closet';
 import { useProduct } from '@/data/shop';
-import { usePhotos, useStartTryOn } from '@/data/tryOn';
+import { useOutfit } from '@/data/stylist';
+import { usePhotos, usePreviewCredits, useStartTryOn } from '@/data/tryOn';
 import { track } from '@/lib/analytics';
 import { explainDeniedPermission, pickFromLibrary, takePhoto, validatePersonPhoto } from '@/lib/photos';
 import { useTryOnSession } from '@/state/tryOnSession';
@@ -28,10 +29,15 @@ type Selection =
 
 /** 04 · Your photo — /photo. Focused step: no tab bar. */
 export default function PhotoScreen() {
-  const { productId, closetItemId } = useLocalSearchParams<{ productId?: string; closetItemId?: string }>();
+  const { productId, closetItemId, outfitId } = useLocalSearchParams<{ productId?: string; closetItemId?: string; outfitId?: string }>();
   const product = useProduct(productId);
   const closetItem = useWardrobeItem(closetItemId);
+  const outfit = useOutfit(outfitId);
+  const outfitLead = outfit.data?.resolvedItems.find((r) => r.status === 'ok');
+  const outfitLeadPiece = outfitLead && 'item' in outfitLead ? outfitLead.item : undefined;
+  const outfitLeadProduct = outfitLead && 'product' in outfitLead ? outfitLead.product : undefined;
   const photos = usePhotos();
+  const credits = usePreviewCredits();
   const startTryOn = useStartTryOn();
   const setActiveJob = useTryOnSession((state) => state.setActiveJob);
 
@@ -47,10 +53,13 @@ export default function PhotoScreen() {
     ? { kind: 'product', productId }
     : closetItemId
       ? { kind: 'closet', itemId: closetItemId }
-      : null;
-  const garmentName = product.data?.title ?? closetItem.data?.name;
-  const garmentKind = product.data?.kind ?? closetItem.data?.kind ?? 'jacket';
-  const garmentColor = product.data?.color.hex ?? closetItem.data?.color?.hex;
+      : outfitId
+        ? { kind: 'outfit', outfitId }
+        : null;
+  const garmentName = product.data?.title ?? closetItem.data?.name ?? (outfit.data ? `${outfit.data.title} (whole outfit)` : undefined);
+  const garmentKind = product.data?.kind ?? closetItem.data?.kind ?? outfitLeadPiece?.kind ?? outfitLeadProduct?.kind ?? 'jacket';
+  const garmentColor = product.data?.color.hex ?? closetItem.data?.color?.hex ?? outfitLeadPiece?.color?.hex ?? outfitLeadProduct?.color.hex;
+  const garmentImage = product.data?.images[0] ?? closetItem.data?.image ?? outfitLeadPiece?.image ?? outfitLeadProduct?.images[0];
   const recentPhoto = photos.data?.[photos.data.length - 1];
 
   const choose = async (source: 'library' | 'camera') => {
@@ -121,15 +130,22 @@ export default function PhotoScreen() {
       header={<AppHeader left="back" fallbackHref="/shop" />}
       bottomInset
       footer={
-        <Button
-          title="Create my preview"
-          onPress={create}
-          disabled={!canCreate}
-          loading={startTryOn.isPending}
-          accessibilityHint={
-            canCreate ? undefined : 'Add a photo and confirm you have permission to use it first'
-          }
-        />
+        <>
+          {credits.data != null ? (
+            <AppText variant="secondary" color={colors.muted} align="center">
+              Uses 1 preview credit · {credits.data} left
+            </AppText>
+          ) : null}
+          <Button
+            title="Create my preview"
+            onPress={create}
+            disabled={!canCreate}
+            loading={startTryOn.isPending}
+            accessibilityHint={
+              canCreate ? undefined : 'Add a photo and confirm you have permission to use it first'
+            }
+          />
+        </>
       }>
       <AppText variant="display" align="center" accessibilityRole="header" style={styles.title}>
         See it on you.
@@ -140,7 +156,7 @@ export default function PhotoScreen() {
         accessibilityRole="button"
         accessibilityLabel={`Trying on ${garmentName ?? 'your piece'}. Change piece`}
         style={({ pressed }) => [styles.garment, pressed && styles.pressed]}>
-        <GarmentImage kind={garmentKind} colorHex={garmentColor} aspectRatio={1} rounded={8} illustrationScale={0.8} style={styles.garmentThumb} />
+        <GarmentImage image={garmentImage} kind={garmentKind} colorHex={garmentColor} contentFit="contain" aspectRatio={1} rounded={8} illustrationScale={0.8} style={styles.garmentThumb} />
         <View style={styles.flex}>
           <AppText variant="caption" color={colors.muted}>
             Trying on

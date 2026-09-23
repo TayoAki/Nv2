@@ -5,6 +5,7 @@
 .expo
 dist
 dist-live
+dist-e2e
 web-build
 server/test
 *.log

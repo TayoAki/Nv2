@@ -125,7 +125,7 @@ export default function ClosetImportScreen() {
         <StateView
           kind="loading"
           title={pendingManual ? 'Preparing your item' : 'Checking your photos'}
-          message="Finding each garment and choosing the clearest photo."
+          message="Finding each garment, cutting it out and reading its colours. This can take a minute or two."
         />
       </Screen>
     );
@@ -292,6 +292,14 @@ function DraftReview({
           />
         </>
       }>
+      {imp.simulated ? (
+        <Banner
+          tone="notice"
+          title="Simulated import"
+          message="AI photo reading isn't connected yet. Choose the category and check every detail yourself."
+          style={styles.banner}
+        />
+      ) : null}
       {imp.failedPhotoCount > 0 ? (
         <Banner
           tone="notice"
@@ -324,7 +332,8 @@ function DraftReview({
         kind={category ? kindFor(category) : 'jacket'}
         colorHex={color?.hex}
         aspectRatio={1.35}
-        contentFit="cover"
+        // Cut-outs and whole-garment photos stay uncropped.
+        contentFit="contain"
         accessibilityLabel={photo ? 'Selected garment photo' : 'No photo yet'}
         style={styles.hero}>
         {draft.photos.length > 1 ? (

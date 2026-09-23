@@ -15,7 +15,7 @@ import { Banner, StateView } from '@/components/ui/Feedback';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { OptionSheet } from '@/components/ui/SelectField';
 import { useProduct } from '@/data/shop';
-import { useDeleteLook, useLook, useReportLook, useSetLookSaved } from '@/data/tryOn';
+import { photoParamsFor, useDeleteLook, useLook, useReportLook, useSetLookSaved } from '@/data/tryOn';
 import { track } from '@/lib/analytics';
 import { confirm } from '@/lib/confirm';
 import { expiryLabel } from '@/lib/format';
@@ -117,7 +117,7 @@ function PreviewBody({ look }: { look: Look }) {
   const retry = () =>
     router.push({
       pathname: '/photo',
-      params: look.garment.kind === 'product' ? { productId: look.garment.productId } : { closetItemId: look.garment.itemId },
+      params: photoParamsFor(look.garment),
     });
 
   return (
@@ -153,6 +153,13 @@ function PreviewBody({ look }: { look: Look }) {
         style={styles.toggle}
       />
 
+      {look.simulated ? (
+        <Banner
+          tone="notice"
+          title="Simulated preview"
+          message="AI rendering isn't connected yet, so this image is a placeholder made from your photo and the pieces. Real previews appear here once it's switched on."
+        />
+      ) : null}
       <AppText variant="secondary" color={colors.muted} align="center">
         A style preview, not a fit measurement. Appearance may vary. Use the size guide or book a fitting to confirm fit.
       </AppText>
@@ -180,11 +187,18 @@ function PreviewBody({ look }: { look: Look }) {
         {isProduct && look.garmentAvailable && !expired ? (
           <Button title="Choose size" variant="gold" onPress={() => setSizeOpen(true)} />
         ) : null}
-        {!isProduct && !expired ? (
+        {look.garment.kind === 'closet' && !expired ? (
           <Button
             title="View in my closet"
             variant="gold"
             onPress={() => look.garment.kind === 'closet' && router.navigate(`/closet/items/${look.garment.itemId}`)}
+          />
+        ) : null}
+        {look.garment.kind === 'outfit' && look.garmentAvailable && !expired ? (
+          <Button
+            title="View the outfit"
+            variant="gold"
+            onPress={() => look.garment.kind === 'outfit' && router.navigate(`/outfits/${look.garment.outfitId}`)}
           />
         ) : null}
         {!expired ? (
@@ -259,7 +273,8 @@ const styles = StyleSheet.create({
   },
   frame: {
     width: '100%',
-    aspectRatio: 0.74,
+    // Renders are 2:3 portraits, head to toe.
+    aspectRatio: 2 / 3,
     borderRadius: radius.card,
     overflow: 'hidden',
     backgroundColor: '#EEE9E0',

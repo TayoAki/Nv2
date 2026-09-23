@@ -109,15 +109,28 @@ Demo data is saved on the device (AsyncStorage, or localStorage on web). The cho
 | Web app (shop and store admin) | https://web-production-98e6c5.up.railway.app | `Dockerfile.web` |
 | API | https://api-production-b54e.up.railway.app | `server/Dockerfile` |
 
-Both deploy automatically from the `claude/bold-gauss-nclfml` branch. The web app redeploys when app files change (`src/`, `assets/`, `shared/`, `app.json`, `.env`, packages); the API redeploys when `server/` or `shared/` change. The store admin is at `/admin` on the web app.
+Both deploy automatically from the `claude/bold-gauss-nclfml` branch. The web app redeploys when app files change (`src/`, `assets/`, `shared/`, `app.json`, `.env`, packages); the API redeploys when `server/`, `shared/` or `assets/collection/` change. The store admin is at `/admin` on the web app.
 
 ## Server (Railway)
 
-`server/` is the Nyoni API: Node 22, Hono and Postgres, deployed on Railway from `server/Dockerfile`. So far it serves the catalog and the store admin; the other shopper features still run on the in-app demo backend.
+`server/` is the Nyoni API: Node 22, Hono and Postgres, deployed on Railway from `server/Dockerfile`. It serves the catalog, the store admin and the AI features (try-on renders, closet photo import, stylist). Bag, checkout, accounts and the closet list itself still run on the in-app demo backend.
 
 - `GET /v1/catalog`: the capsule with staff edits applied (built with the same `shared/catalog` code as the app).
 - `POST /v1/admin/sessions`, `GET` / `DELETE /v1/admin/session`: staff sign-in with scrypt-hashed passwords. Session tokens are stored only as hashes and last 12 hours. Sign-in pauses after 5 failures per email or 20 per client.
 - `GET /v1/admin/products`, `PUT` / `DELETE /v1/admin/products/:id/inventory`: sizes, stock and price edits, validated and logged in `inventory_audit`.
+
+AI features (all through OpenRouter, one key):
+
+- `GET /v1/ai/status`: which provider is live (`openrouter` or `simulated`) and whether the stylist is available.
+- `POST /v1/devices`: registers an anonymous app install and returns a device token (stored only as a hash) with 10 free preview credits.
+- `POST /v1/uploads?kind=person|closet`: raw photo bytes. JPEG, PNG or WebP only, rotated upright, at most 2048 px on the long edge. Try-on photos expire after 24 hours.
+- `POST /v1/renders`, `GET /v1/renders/:id`, `POST /v1/renders/:id/keep`: try-on as an **image edit** with `openai/gpt-image-2`. The request holds the member photo and up to 15 garment references (capsule pieces by key, closet cut-outs, or a text description). A suit is always sent whole. Credits are reserved up front (1 standard, 3 HQ). Each image is a queued job with up to 3 attempts; a moderation or bad-request failure settles at once, and failed images are refunded. The prompt names every reference and its layer, fills gaps (white shirt, charcoal trousers, black shoes), keeps the person's identity and body, and fixes headshot framing ("the head is roughly one seventh to one eighth of total height"). `input_fidelity` is never sent. About $0.03 and 30–50 seconds per image. Saving a look keeps its render for 30 days.
+- `POST /v1/imports`, `GET /v1/imports/:id`: closet photo import. `openai/gpt-5-mini` finds each piece with a bounding box (structured output). `openai/gpt-image-1` makes a transparent cut-out, and falls back to opaque if transparency is refused. Colours are sampled from the cut-out, and `openai/text-embedding-3-small` flags pieces already in the closet.
+- `POST /v1/stylist`: `google/gemini-3.8-flash` with tools (`search_catalog`, `propose_outfit`, `report_no_match`). Every proposal is checked (real closet ids, suits worn whole, trousers and shoes, focus piece, owned-only, in stock, budget), and a rejected proposal goes back to the model to fix.
+
+**Without `OPENROUTER_API_KEY` the server simulates renders and imports.** Uploads, credits, the queue, retries, refunds, colour sampling and duplicates all run for real. The images are clearly labelled placeholders ("Simulated preview"), and the app shows a "Simulated" notice. The stylist stays on the app's rule-based engine until the key is set. **Adding the key in Railway (api service → Variables) switches everything to the real models with no code change.** Gemini Live voice isn't on OpenRouter; it needs a Google AI Studio key.
+
+Model names can be changed with `OPENROUTER_RENDER_MODEL`, `OPENROUTER_CUTOUT_MODEL`, `OPENROUTER_VISION_MODEL`, `OPENROUTER_EMBEDDING_MODEL` and `OPENROUTER_STYLIST_MODEL`. `FREE_CREDITS`, `RENDERS_PER_HOUR` and `RENDER_CONCURRENCY` tune the limits.
 
 The app points at the live server through `EXPO_PUBLIC_API_URL` in `.env` (`https://api-production-b54e.up.railway.app`). After changing it, restart with `npx expo start --clear`, because the value is baked into the bundle. Delete the line to run on the demo backend only. The app then syncs the catalog from the server (at most every 30 seconds, and right after a staff edit), and the store admin signs in against the server.
 
@@ -128,9 +141,9 @@ Server variables in Railway:
 | `DATABASE_URL` | Railway Postgres connection (a reference to the Postgres service) |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | The first staff account, created or updated on deploy. The password must be 12+ characters; changing it signs that account out everywhere. |
 | `CORS_ORIGINS` | Web origins allowed to call the API (comma-separated), or `*` |
-| `OPENROUTER_API_KEY` | For the AI features in the next steps |
+| `OPENROUTER_API_KEY` | Turns on the real AI models (renders, import, stylist). Without it, renders and imports are simulated. |
 
-Run it locally with `cd server && npm install && DATABASE_URL=… npm run dev`. Tests (`npm test`) need a Postgres database in `DATABASE_URL`.
+Run it locally with `cd server && npm install && DATABASE_URL=… npm run dev`. Tests (`npm test`) need a Postgres database in `DATABASE_URL`. They cover the catalog, staff sessions and inventory, plus the AI pipeline against a fake OpenRouter: request shapes, prompts, retries, refunds, credits, cut-out fallback, duplicates and stylist validation (29 tests).
 
 ## Feature status
 
@@ -143,15 +156,16 @@ Status as of this build. "Working" means it works end to end against the demo ba
 | Product page, size picker, size guide, add to bag | Working |
 | Bag: quantities, price and stock changes, review before checkout | Working |
 | Checkout handoff and order status | Working with a demo checkout; the real WooCommerce checkout needs backend |
-| Try-on photo flow: consent, upload, job progress, cancel, time-out, failure, limit, save, expiry | Working; the preview image is a placeholder until the render model (`gpt-image-2`) is connected |
-| Closet: add, import review, edit, archive, delete, duplicates | Working; photo recognition and cut-outs are simulated until the ingest pipeline is connected |
-| Stylist: outfits from your closet, follow-ups, Nyoni suggestions, saved outfits | Working with a rule-based demo stylist; Gemini (text and Live voice) needs backend |
+| Try-on: consent, upload, job progress, cancel, failure, limit, save, expiry; one piece or a whole outfit | Working through the server's render pipeline. Simulated placeholder images until `OPENROUTER_API_KEY` is set, then `gpt-image-2` |
+| Preview credits (10 free per device; 1 per standard preview) | Working on the server; the HQ option (3 credits) is in the API but not yet in the app |
+| Closet: 16 real Nyoni pieces with photos, add, import review, edit, archive, delete, duplicates | Working. Photo import runs on the server (detect, cut-out, colours, duplicates); simulated until the key is set |
+| Stylist: outfits from your closet, follow-ups, Nyoni suggestions, saved outfits | Working. Rule-based in the app now; switches to the server's Gemini stylist when the key is set. Live voice needs a Google key |
 | Account: email sign-in link, recovery, guest migration, sign out | Working with a demo link; real email sending needs backend |
 | Style preferences, privacy controls, photo deletion | Working; deletion from real storage needs backend |
 | Store admin (web): staff sign-in, sizes, stock, prices | Working on the Railway server (real staff accounts, shared edits); WooCommerce sync not connected |
 | Demo scenarios for failures and empty states | Working |
 | Tested on real iOS and Android devices | Not yet (Expo Go on iPhone loads the app) |
-| Automated tests in the repository | Not yet |
+| Automated tests in the repository | Server: 29 tests (`cd server && npm test`). App: Playwright flows run during development, not yet in the repo |
 
 ## Project structure
 

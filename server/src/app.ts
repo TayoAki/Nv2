@@ -27,7 +27,9 @@ const clientKey = (c: Context) => c.req.header('x-forwarded-for')?.split(',')[0]
 export function createApp() {
   const app = new Hono<Env>();
 
-  app.use(secureHeaders());
+  // Images are read by the web app on another origin (the web and API services are separate),
+  // so resources may be embedded cross-origin. The blob ids themselves are the permission.
+  app.use(secureHeaders({ crossOriginResourcePolicy: 'cross-origin' }));
   app.use(
     '/v1/*',
     cors({

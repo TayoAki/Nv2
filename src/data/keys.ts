@@ -12,6 +12,7 @@ export const keys = {
   look: (id: string) => ['look', id] as const,
   savedLooks: ['looks', 'saved'] as const,
   photos: ['photos'] as const,
+  previewCredits: ['previewCredits'] as const,
   receipt: (id: string) => ['receipt', id] as const,
   wardrobeRoot: ['wardrobe'] as const,
   wardrobe: ['wardrobe', 'list'] as const,

@@ -10,7 +10,7 @@ import { GarmentImage } from '@/components/media/GarmentImage';
 import { AppText } from '@/components/ui/AppText';
 import { Button } from '@/components/ui/Button';
 import { ProgressRing, StateView } from '@/components/ui/Feedback';
-import { usePhotos, useCancelTryOn, useTryOnJob } from '@/data/tryOn';
+import { photoParamsFor, usePhotos, useCancelTryOn, useTryOnJob } from '@/data/tryOn';
 import { track } from '@/lib/analytics';
 import { confirm } from '@/lib/confirm';
 import { useTryOnSession } from '@/state/tryOnSession';
@@ -72,7 +72,7 @@ export default function JobScreen() {
   const retryPhoto = () =>
     router.push({
       pathname: '/photo',
-      params: job.garment.kind === 'product' ? { productId: job.garment.productId } : { closetItemId: job.garment.itemId },
+      params: photoParamsFor(job.garment),
     });
 
   const onCancel = async () => {
