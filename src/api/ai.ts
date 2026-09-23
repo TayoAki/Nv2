@@ -129,7 +129,7 @@ export async function uploadImage(localUri: string, kind: 'person' | 'closet') {
   } catch {
     throw new ApiError('validation', "We couldn't read this photo. Choose it again.");
   }
-  return asDevice<{ blobId: string; url: string; framing: 'full' | 'cropped' }>(`/v1/uploads?kind=${kind}`, {
+  return asDevice<{ blobId: string; url: string; framing: 'full' | 'cropped' | 'unknown' }>(`/v1/uploads?kind=${kind}`, {
     method: 'POST',
     body: blob,
     timeoutMs: 60_000,

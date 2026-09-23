@@ -16,7 +16,7 @@ export type RenderGarment = {
 };
 
 export type RenderOptions = {
-  framing: 'full' | 'cropped';
+  framing: 'full' | 'cropped' | 'unknown';
   /** Member preference: slim, regular or relaxed. */
   fit?: string;
   /** Member preference, e.g. "menswear tailoring". */
@@ -69,6 +69,10 @@ export function renderPrompt(garments: RenderGarment[], options: RenderOptions):
   if (options.framing === 'cropped') {
     lines.push(
       'Image 1 is cropped (a headshot or half-length photo). Use it for identity only, never for face-to-frame scale. Infer a naturally proportioned standing body — the head is roughly one seventh to one eighth of total height — and pull the camera back for a full-length, head-to-toe shot.',
+    );
+  } else if (options.framing === 'unknown') {
+    lines.push(
+      'If Image 1 does not show the whole body (a headshot or half-length photo), use it for identity only, never for face-to-frame scale: infer a naturally proportioned standing body — the head is roughly one seventh to one eighth of total height. Either way, show the full body, head to toe, with the whole outfit visible.',
     );
   } else {
     lines.push('Show the full body, head to toe, with the whole outfit visible.');

@@ -38,9 +38,15 @@ export async function normalizeImage(input: Buffer, { keepAlpha = false } = {}):
 export const dataUrl = (image: Image) => `data:${image.contentType};base64,${image.buffer.toString('base64')}`;
 
 /** A photo much less than twice as tall as it is wide is treated as cropped (headshot or half-length). */
-export function framingOf(width?: number, height?: number): 'full' | 'cropped' {
-  if (!width || !height) return 'cropped';
-  return height / width >= 1.6 ? 'full' : 'cropped';
+/**
+ * A first guess at how much of the person the photo shows, from its shape. Tall photos
+ * (9:16 and narrower) are usually full length, and square or landscape ones are usually
+ * headshots. Portraits in between (3:4, 2:3) could be either, so the model decides.
+ */
+export function framingOf(width?: number, height?: number): 'full' | 'cropped' | 'unknown' {
+  if (!width || !height) return 'unknown';
+  const ratio = height / width;
+  return ratio >= 1.7 ? 'full' : ratio <= 1.1 ? 'cropped' : 'unknown';
 }
 
 /** Crops a detected item out of a photo. `box` is normalised 0–1; a little margin keeps edges intact. */

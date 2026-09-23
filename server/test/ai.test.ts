@@ -247,6 +247,17 @@ describe('render requests to OpenRouter', () => {
     assert.match(prompt, /one seventh to one eighth/);
   });
 
+  it('lets the model judge framing for an in-between portrait', async () => {
+    const device = await newDevice();
+    const person = await upload(device, 'person', await photo(800, 1200));
+    assert.equal(person.framing, 'unknown');
+    await render(device, { personBlobId: person.blobId, garments: [NAVY_SUIT] });
+    await drain();
+    const prompt = recorded.find((r) => r.path === '/images')!.body.prompt as string;
+    assert.match(prompt, /If Image 1 does not show the whole body/);
+    assert.match(prompt, /head to toe/);
+  });
+
   it('retries a transient failure', async () => {
     const device = await newDevice();
     const person = await upload(device, 'person', await photo(600, 1200));

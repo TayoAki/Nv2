@@ -143,7 +143,7 @@ Server variables in Railway:
 | `CORS_ORIGINS` | Web origins allowed to call the API (comma-separated), or `*` |
 | `OPENROUTER_API_KEY` | Turns on the real AI models (renders, import, stylist). Without it, renders and imports are simulated. |
 
-Run it locally with `cd server && npm install && DATABASE_URL=… npm run dev`. Tests (`npm test`) need a Postgres database in `DATABASE_URL`. They cover the catalog, staff sessions and inventory, plus the AI pipeline against a fake OpenRouter: request shapes, prompts, retries, refunds, credits, cut-out fallback, duplicates and stylist validation (29 tests).
+Run it locally with `cd server && npm install && DATABASE_URL=… npm run dev`. Tests (`npm test`) need a Postgres database in `DATABASE_URL`. They cover the catalog, staff sessions and inventory, plus the AI pipeline against a fake OpenRouter: request shapes, prompts, retries, refunds, credits, cut-out fallback, duplicates and stylist validation (30 tests).
 
 ## Feature status
 
@@ -165,7 +165,7 @@ Status as of this build. "Working" means it works end to end against the demo ba
 | Store admin (web): staff sign-in, sizes, stock, prices | Working on the Railway server (real staff accounts, shared edits); WooCommerce sync not connected |
 | Demo scenarios for failures and empty states | Working |
 | Tested on real iOS and Android devices | Not yet (Expo Go on iPhone loads the app) |
-| Automated tests in the repository | Server: 29 tests (`cd server && npm test`). App: Playwright flows run during development, not yet in the repo |
+| Automated tests in the repository | Server: 30 tests (`cd server && npm test`). App: Playwright flows run during development, not yet in the repo |
 
 ## Project structure
 
