@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { aiProvider, type ChatMessage, type ToolDefinition } from './ai';
+import { aiProvider, ProviderError, type ChatMessage, type ToolDefinition } from './ai';
 import { currentCatalog } from './catalog';
 import { env } from './env';
 import { HttpError } from './errors';
@@ -166,7 +166,14 @@ export async function recommend(input: StylistRequest): Promise<StylistResponse>
   ];
 
   for (let turn = 0; turn < MAX_TURNS; turn += 1) {
-    const { content, toolCalls } = await provider.chat(messages, TOOLS);
+    let reply;
+    try {
+      reply = await provider.chat(messages, TOOLS);
+    } catch (error) {
+      if (error instanceof ProviderError) throw new HttpError('unavailable', 'Your stylist is unavailable right now. Please try again in a moment.');
+      throw error;
+    }
+    const { content, toolCalls } = reply;
     if (toolCalls.length === 0) {
       return { status: 'no_match', reply: content?.trim() || "I couldn't build a look for that. Try asking for an occasion.", suggestedProductId: null };
     }

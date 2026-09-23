@@ -147,8 +147,9 @@ async function runImport(row: { id: string; device_id: string; attempts: number;
       try {
         items = await provider.detect(photo);
       } catch (error) {
-        // A transient failure retries the whole import; a permanent one only skips this photo.
-        if (error instanceof ProviderError && !error.permanent) throw error;
+        // A transient failure retries the whole import, and so does a rejected key or no
+        // credit (not the photo's fault). Anything else permanent only skips this photo.
+        if (error instanceof ProviderError && (!error.permanent || error.code === 'unavailable' || error.code === 'no_credit')) throw error;
         failedPhotos += 1;
         continue;
       }

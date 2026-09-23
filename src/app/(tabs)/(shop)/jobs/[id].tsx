@@ -176,6 +176,12 @@ function describe(job: TryOnJob): { title: string; message: string; retry?: stri
             "You've reached the preview limit for now. Previews are limited to keep them fair for everyone. You can keep shopping and try again later.",
         };
       }
+      if (job.failureCode === 'service_unavailable') {
+        return {
+          title: 'Previews are paused',
+          message: "Previews aren't available right now. Your photo is fine; please try again later.",
+        };
+      }
       if (job.failureCode === 'timeout') {
         return {
           title: 'This is taking too long',

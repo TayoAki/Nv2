@@ -286,6 +286,20 @@ describe('render requests to OpenRouter', () => {
     assert.equal(await credits(device), 10);
   });
 
+  it('pauses previews when the key is rejected', async () => {
+    const device = await newDevice();
+    const person = await upload(device, 'person', await photo(600, 1200));
+    respond('/images', error(401, 'API key expired.'));
+    const created = await render(device, { personBlobId: person.blobId, garments: [BOOTS] });
+    await drain();
+    const view = await (await call(`/v1/renders/${created.body.id}`, { device })).json();
+    assert.equal(view.status, 'failed');
+    assert.equal(view.images[0].attempts, 1);
+    assert.equal(view.images[0].errorCode, 'unavailable');
+    assert.match(view.images[0].message, /paused/);
+    assert.equal(await credits(device), 10);
+  });
+
   it('gives up after three transient failures', async () => {
     const device = await newDevice();
     const person = await upload(device, 'person', await photo(600, 1200));

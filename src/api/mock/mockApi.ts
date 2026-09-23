@@ -320,6 +320,7 @@ const SERVER_FAILURES: Record<string, TryOnFailureCode> = {
   timeout: 'timeout',
   photo_expired: 'photo_expired',
   no_credit: 'service_unavailable',
+  unavailable: 'service_unavailable',
   rate_limited: 'service_unavailable',
   upstream: 'service_unavailable',
 };

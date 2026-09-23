@@ -123,6 +123,7 @@ const USER_MESSAGES: Record<string, string> = {
   photo_expired: 'Your photo has expired. Choose it again to create a preview.',
   timeout: "This is taking too long. We couldn't finish your preview in time.",
   no_credit: 'Previews are paused right now. Please try again later.',
+  unavailable: 'Previews are paused right now. Please try again later.',
   default: "We couldn't create a reliable preview. Try a clearer photo.",
 };
 

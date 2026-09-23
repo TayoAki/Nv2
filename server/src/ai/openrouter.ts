@@ -46,6 +46,8 @@ function classify(status: number, body: string): ProviderError {
     }
   })().slice(0, 300);
   if (/moderat|safety|policy|flagged/i.test(message)) return new ProviderError(message, true, 'moderation', status);
+  // A missing, expired or revoked key, or no OpenRouter credit: nothing the shopper can fix.
+  if (status === 401 || status === 403) return new ProviderError(message, true, 'unavailable', status);
   if (status === 402) return new ProviderError(message, true, 'no_credit', status);
   if (status === 408) return new ProviderError(message, false, 'timeout', status);
   if (status === 429) return new ProviderError(message, false, 'rate_limited', status);

@@ -20,7 +20,7 @@ export class ProviderError extends Error {
   constructor(
     message: string,
     readonly permanent: boolean,
-    readonly code: 'moderation' | 'bad_request' | 'no_credit' | 'rate_limited' | 'timeout' | 'upstream' = 'upstream',
+    readonly code: 'moderation' | 'bad_request' | 'no_credit' | 'unavailable' | 'rate_limited' | 'timeout' | 'upstream' = 'upstream',
     readonly status?: number,
   ) {
     super(message);
