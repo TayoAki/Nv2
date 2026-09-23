@@ -27,6 +27,7 @@ import type {
   WardrobeItem,
 } from '../types';
 
+import { applyInventory, buildCapsuleCatalog } from '../catalog/capsule';
 import { getDb, persist, resetDb, type JobScenario, type MockDb, type StoredJob, type StoredReceipt } from './db';
 import { COLORS } from './fixtures';
 import { recommend } from './stylistEngine';
@@ -254,8 +255,17 @@ function bagView(db: MockDb): Bag {
   const lines: BagLine[] = [];
   for (const stored of db.bag) {
     const product = db.products.find((p) => p.id === stored.productId);
-    const variant = product?.variants.find((v) => v.id === stored.variantId);
-    if (!product || !variant) continue;
+    if (!product) continue;
+    // A size removed from the store stays in the bag as unavailable, so it never vanishes silently.
+    const variant = product.variants.find((v) => v.id === stored.variantId) ?? {
+      id: stored.variantId,
+      productId: product.id,
+      size: { code: '', label: 'Size no longer offered' },
+      color: product.color,
+      price: stored.priceSeen,
+      stock: 'out_of_stock' as const,
+      stockCount: 0,
+    };
 
     const notices: BagNotice[] = [];
     const unavailable = !!product.discontinued || variant.stock === 'out_of_stock';
@@ -446,6 +456,51 @@ export const mockApi: NyoniApi = {
   async getProduct(id) {
     const db = await request();
     return clone(findProduct(db, id));
+  },
+
+  /* Admin panel */
+  async adminListProducts() {
+    const db = await request();
+    return clone(db.products);
+  },
+
+  async updateInventory(productId, update) {
+    const db = await request('write');
+    const index = db.products.findIndex((p) => p.id === productId);
+    if (index === -1) notFound('This product is no longer in the catalog.');
+    const sizes = update.sizes.map((size) => ({ label: size.label.trim(), stockCount: size.stockCount }));
+    if (sizes.length === 0) throw new ApiError('validation', 'Add at least one size.');
+    if (sizes.some((size) => !size.label)) throw new ApiError('validation', 'Every size needs a label.');
+    const labels = sizes.map((size) => size.label.toLowerCase());
+    if (new Set(labels).size !== labels.length) throw new ApiError('validation', 'Two sizes have the same label.');
+    if (sizes.some((size) => !Number.isInteger(size.stockCount) || size.stockCount < 0 || size.stockCount > 999)) {
+      throw new ApiError('validation', 'Stock must be a whole number from 0 to 999.');
+    }
+    const { amountMinor } = update.price;
+    if (!Number.isInteger(amountMinor) || amountMinor <= 0 || amountMinor > 10_000_000) {
+      throw new ApiError('validation', 'Enter a price between $0.01 and $100,000.');
+    }
+    const current = db.products[index];
+    const override = { price: update.price, sizes, updatedAt: iso() };
+    db.inventory[productId] = override;
+    const next = applyInventory(current, override);
+    if (current.price.amountMinor !== amountMinor) next.previousPrice = current.price;
+    db.products[index] = next;
+    persist();
+    return clone(next);
+  },
+
+  async resetInventory(productId) {
+    const db = await request('write');
+    const index = db.products.findIndex((p) => p.id === productId);
+    const base = buildCapsuleCatalog().find((p) => p.id === productId);
+    if (index === -1 || !base) notFound('This product is no longer in the catalog.');
+    const current = db.products[index];
+    delete db.inventory[productId];
+    if (current.price.amountMinor !== base.price.amountMinor) base.previousPrice = current.price;
+    db.products[index] = base;
+    persist();
+    return clone(base);
   },
 
   /* Photos */

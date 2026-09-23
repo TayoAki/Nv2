@@ -64,6 +64,13 @@ export type TryOnEligibility = {
   reasonIfIneligible?: string;
 };
 
+export type SizeSource = 'store' | 'placeholder' | 'admin';
+
+/** A size as edited in the admin panel; the stock status is derived from the count. */
+export type InventorySize = { label: string; stockCount: number };
+
+export type InventoryUpdate = { price: Money; sizes: InventorySize[] };
+
 /**
  * One wearable piece. A suit is one product but two or three pieces (jacket, trousers,
  * waistcoat), each with its own cut-out, so pieces can be styled and rendered separately.
@@ -104,8 +111,11 @@ export type Product = {
   isIllustrative: boolean;
   /** Pieces the product is made of: one for most products, two or three for suits. */
   pieces: ProductPiece[];
-  /** Sizes and stock are placeholders until the store sync supplies real variants. */
-  sizesAreSamples: boolean;
+  /**
+   * Where the sizes come from: the store export, placeholders made up until the store lists
+   * them, or edits in the admin panel.
+   */
+  sizeSource: SizeSource;
   /** The product page on nyonicouture.com. */
   storeUrl?: string;
   /** Set when the price moved since the shopper last saw it. */

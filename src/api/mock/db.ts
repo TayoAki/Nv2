@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import type { InventoryOverride } from '../catalog/capsule';
+
 import type {
   BagLine,
   ColorInfo,
@@ -28,7 +30,7 @@ import {
 } from './fixtures';
 
 /** Bump when fixture or storage shapes change; older saved demo data is replaced. */
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 const STORAGE_KEY = 'nyoni.demo-db';
 
 export type JobScenario = 'normal' | 'slow' | 'timeout' | 'ai_failure' | 'quota';
@@ -83,6 +85,8 @@ export type MockDb = {
   version: number;
   seed: 'demo' | 'empty';
   products: Product[];
+  /** Admin-panel edits to sizes, stock and price. Store data: kept when demo data resets. */
+  inventory: Record<string, InventoryOverride>;
   bag: StoredBagLine[];
   photos: PersonPhoto[];
   jobs: StoredJob[];
@@ -102,13 +106,18 @@ export type MockDb = {
   orderCounter: number;
 };
 
-export function createDb(seed: 'demo' | 'empty', now = Date.now()): MockDb {
+export function createDb(
+  seed: 'demo' | 'empty',
+  now = Date.now(),
+  inventory: Record<string, InventoryOverride> = {},
+): MockDb {
   const demo = seed === 'demo';
-  const products = buildCatalog();
+  const products = buildCatalog(inventory);
   return {
     version: DB_VERSION,
     seed,
     products,
+    inventory,
     bag: demo
       ? [
           {
@@ -177,7 +186,8 @@ export function persist() {
 }
 
 export async function resetDb(seed: 'demo' | 'empty'): Promise<MockDb> {
-  db = createDb(seed);
+  // Admin-panel edits are store data, not shopper demo data, so they survive a reset.
+  db = createDb(seed, Date.now(), db?.inventory ?? {});
   loading = Promise.resolve(db);
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(db));
   return db;

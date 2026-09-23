@@ -1,12 +1,14 @@
 import type {
   ColorInfo,
   GarmentKind,
+  InventorySize,
   MediaImage,
   Money,
   Occasion,
   Product,
   ProductCategory,
   ProductPiece,
+  StockStatus,
   TryOnEligibility,
   Variant,
 } from '../types';
@@ -50,7 +52,16 @@ export type CapsuleRow = {
 
 const FEATURED = new Set(['p-nathan', 'p-navy-aztec-blazer']);
 
-/** Fallback sizes for products whose export lists none. */
+/**
+ * Sizes, stock and price set in the admin panel. They replace the export's values until the
+ * WooCommerce sync takes over stock.
+ */
+export type InventoryOverride = { price: Money; sizes: InventorySize[]; updatedAt: string };
+
+/** Units per size when the export only says "in stock". */
+const DEFAULT_STOCK = 8;
+
+/** Placeholder sizes for products whose export lists none; editable in the admin panel. */
 const SAMPLE_SIZES: Record<'jacket' | 'waist' | 'shoes' | 'one', [string, string][]> = {
   jacket: [
     ['38', '38 US / 48 EU'],
@@ -142,6 +153,42 @@ function sizesFor(kind: GarmentKind, row: CapsuleRow): { sizes: [string, string]
   return { sizes: SAMPLE_SIZES.jacket, samples: true };
 }
 
+export function stockStatus(count: number): StockStatus {
+  return count <= 0 ? 'out_of_stock' : count <= 2 ? 'low_stock' : 'in_stock';
+}
+
+/**
+ * Short codes for size chips: the leading number ("36" from "36 US / 46 EU") when it's
+ * unique in the list, otherwise a slug of the whole label.
+ */
+export function sizeCodes(labels: string[]): string[] {
+  const leading = labels.map((label) => label.match(/^[\d.]+/)?.[0] ?? null);
+  return labels.map((label, index) => {
+    const lead = leading[index];
+    if (lead && leading.filter((other) => other === lead).length === 1) return lead;
+    return label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `size-${index + 1}`;
+  });
+}
+
+/** Applies admin edits to a catalog product. */
+export function applyInventory(product: Product, override: InventoryOverride): Product {
+  const codes = sizeCodes(override.sizes.map((size) => size.label));
+  return {
+    ...product,
+    price: override.price,
+    sizeSource: 'admin',
+    variants: override.sizes.map((size, index) => ({
+      id: `${product.id}-${codes[index]}`,
+      productId: product.id,
+      size: { code: codes[index], label: size.label },
+      color: product.color,
+      price: override.price,
+      stock: stockStatus(size.stockCount),
+      stockCount: size.stockCount,
+    })),
+  };
+}
+
 function tryOnFor(kind: GarmentKind): TryOnEligibility {
   switch (kind) {
     case 'suit':
@@ -182,13 +229,13 @@ function toPiece(row: CapsuleRow): ProductPiece {
   };
 }
 
-export function buildCapsuleCatalog(): Product[] {
+export function buildCapsuleCatalog(inventory: Record<string, InventoryOverride> = {}): Product[] {
   const byProduct = new Map<string, CapsuleRow[]>();
   for (const row of capsuleRows as CapsuleRow[]) {
     byProduct.set(row.product_url, [...(byProduct.get(row.product_url) ?? []), row]);
   }
 
-  return [...byProduct.values()].map((rows) => {
+  const products = [...byProduct.values()].map((rows): Product => {
     const [first] = rows;
     const id = productId(rows);
     const isSuit = first.group === 'Suits';
@@ -210,7 +257,7 @@ export function buildCapsuleCatalog(): Product[] {
       color,
       price: usd(dollars),
       stock: inStock ? 'in_stock' : 'out_of_stock',
-      stockCount: inStock ? 8 : 0,
+      stockCount: inStock ? DEFAULT_STOCK : 0,
     }));
 
     return {
@@ -230,8 +277,9 @@ export function buildCapsuleCatalog(): Product[] {
       featured: FEATURED.has(id),
       isIllustrative: false,
       pieces,
-      sizesAreSamples: samples,
+      sizeSource: samples ? 'placeholder' : 'store',
       storeUrl: first.product_url,
     };
   });
+  return products.map((product) => (inventory[product.id] ? applyInventory(product, inventory[product.id]) : product));
 }

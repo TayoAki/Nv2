@@ -185,7 +185,7 @@ function ProductDetails({ product }: { product: Product }) {
           highlight={needsSize}
         />
       </View>
-      {product.sizesAreSamples ? (
+      {product.sizeSource === 'placeholder' ? (
         <AppText variant="caption" color={colors.muted} style={styles.sampleNote}>
           Sample sizes and stock until the store connection is live.
         </AppText>

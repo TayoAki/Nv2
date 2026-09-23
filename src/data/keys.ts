@@ -3,6 +3,7 @@ import type { ProductQuery } from '@/api';
 export const keys = {
   products: (query: ProductQuery = {}) => ['products', query] as const,
   product: (id: string) => ['product', id] as const,
+  adminProducts: ['admin', 'products'] as const,
   bag: ['bag'] as const,
   tryOnRoot: ['try-on'] as const,
   tryOn: (id: string) => ['try-on', 'job', id] as const,

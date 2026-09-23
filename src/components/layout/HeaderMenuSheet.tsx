@@ -87,6 +87,12 @@ export function HeaderMenuSheet() {
             Sample data only. Nothing is sent to a store or an AI provider. Pick a scenario to preview
             the alternative states from the screen index.
           </AppText>
+          <ListRow
+            icon="sliders"
+            title="Store admin"
+            subtitle="Sizes, stock and prices for each product (staff)"
+            onPress={() => go('/admin')}
+          />
           <View style={styles.scenarios} accessibilityRole="radiogroup">
             {DEMO_SCENARIOS.map((option) => {
               const selected = option.value === scenario;

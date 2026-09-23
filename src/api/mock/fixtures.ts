@@ -10,7 +10,7 @@ import type {
   WardrobeCategory,
   WardrobeItem,
 } from '../types';
-import { buildCapsuleCatalog } from '../catalog/capsule';
+import { buildCapsuleCatalog, type InventoryOverride } from '../catalog/capsule';
 
 /*
  * Demo fixtures. Products come from the real Nyoni capsule export; the wardrobe, looks and chat
@@ -56,9 +56,9 @@ export const COLOR_OPTIONS: ColorInfo[] = [
 
 export const PATTERN_OPTIONS = ['Solid', 'Pinstripe', 'Check', 'Herringbone', 'Textured', 'Polka dot', 'Patterned'];
 
-/** The catalog is the real Nyoni capsule (src/api/catalog), with sample sizes and stock. */
-export function buildCatalog(): Product[] {
-  return buildCapsuleCatalog();
+/** The catalog is the real Nyoni capsule (src/api/catalog) with any admin-panel edits applied. */
+export function buildCatalog(inventory: Record<string, InventoryOverride> = {}): Product[] {
+  return buildCapsuleCatalog(inventory);
 }
 
 const WARDROBE_SEEDS: {

@@ -58,7 +58,18 @@ The Shop catalog is the real Nyoni capsule: 39 pieces making up 31 products, fro
 - **Pieces and products.** Each row is one wearable piece. A suit's jacket, trousers and waistcoat are separate rows that share `sold_as`, and the app groups them into one product with its pieces listed. Only the suit carries a price (`sold_as_price_usd`), so it's counted once.
 - **Photos.** All 39 house photos are in `assets/collection/`, named `<key>.webp`. A transparent cut-out saved as `<key>.png` takes priority; after adding either, run `npm run collection`. A suit's parts share the photo of the whole suit until the cut-out pass separates them.
 - **Colour.** `hex_measured` holds up to three colours measured from each photo, most dominant first. The first is the piece's colour; all of them are kept as `swatches` for matching.
-- **Sizes and stock.** Sizes come from `sizes_available` and stock from `in_stock`. Where no sizes are listed (the Ivoire blazer, the trousers and the waistcoats), the product shows sample sizes with a note on the product page.
+- **Sizes and stock.** Sizes come from `sizes_available` and stock from `in_stock`. Where no sizes are listed (the Ivoire blazer, the trousers and the waistcoats), the product gets made-up sizes, flagged on the product page until they're edited in the admin panel.
+- **Suits stay whole.** The photos show each suit as a complete look, so a suit is one item with one photo for shopping, try-on and outfits. Its pieces are listed on the product page.
+
+## Store admin
+
+Staff edit sizes, stock and prices at `/admin`: open the account menu, then **Store admin** under Demo mode.
+
+- **Products list:** search, and filters for made-up sizes, edited products, and low or sold-out stock.
+- **Product editor:** set the price and each size's label and stock. Add or remove sizes, or reset to the store export. A stock of 2 or fewer shows shoppers "low stock"; 0 shows "sold out".
+- **Where edits apply:** everywhere at once. A price change makes the bag ask the shopper to review it, and a removed size stays in the bag as unavailable instead of disappearing.
+- **Storage:** edits are store data, kept separately from shopper demo data, so "Restore demo data" doesn't undo them.
+- **WooCommerce:** the sync button is disabled until the store is connected. The API methods (`adminListProducts`, `updateInventory`, `resetInventory` in `src/api/client.ts`) are what the app server implements against the WooCommerce REST API.
 - **Still derived:** occasions come from formality and the product copy.
 
 ## Demo mode

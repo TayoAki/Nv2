@@ -10,6 +10,7 @@ import type {
   OrderReceipt,
   PersonPhoto,
   PrivacyOverview,
+  InventoryUpdate,
   Product,
   ProductQuery,
   ResolvedOutfit,
@@ -74,6 +75,15 @@ export interface NyoniApi {
   /* Catalog: store authoritative, read cache allowed. */
   listProducts(query?: ProductQuery): Promise<Product[]>;
   getProduct(id: string): Promise<Product>;
+
+  /*
+   * Admin panel (staff only): sizes, stock and price per product. Live: backed by the
+   * WooCommerce REST API through the app server, which also pulls stock from the store.
+   */
+  adminListProducts(): Promise<Product[]>;
+  updateInventory(productId: string, update: InventoryUpdate): Promise<Product>;
+  /** Drops admin edits and returns to the store export's sizes, stock and price. */
+  resetInventory(productId: string): Promise<Product>;
 
   /* Photos: POST /photos/upload-intent + POST /photos/:id/complete; DELETE /photos/:id */
   uploadPhoto(photo: LocalPhoto, consentVersion: string): Promise<PersonPhoto>;

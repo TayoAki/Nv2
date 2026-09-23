@@ -59,6 +59,9 @@ export default function RootLayout() {
               <Stack.Screen name="privacy" />
               <Stack.Screen name="checkout" options={{ presentation: 'modal' }} />
               <Stack.Screen name="account" options={{ presentation: 'modal' }} />
+              {/* Staff tool: sizes, stock and prices until the WooCommerce sync is live. */}
+              <Stack.Screen name="admin/index" />
+              <Stack.Screen name="admin/[id]" />
             </Stack>
             <ToastHost />
           </View>
