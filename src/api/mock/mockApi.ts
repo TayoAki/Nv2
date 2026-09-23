@@ -80,6 +80,7 @@ function hash(text: string): number {
 
 const CATEGORY_KIND: Record<WardrobeCategory, GarmentKind> = {
   jackets: 'jacket',
+  waistcoats: 'waistcoat',
   shirts: 'shirt',
   knitwear: 'knitwear',
   trousers: 'trousers',
@@ -91,6 +92,7 @@ const PRODUCT_TO_WARDROBE: Record<ProductCategory, WardrobeCategory> = {
   suits: 'jackets',
   tuxedos: 'jackets',
   jackets: 'jackets',
+  waistcoats: 'waistcoats',
   shirts: 'shirts',
   trousers: 'trousers',
   shoes: 'shoes',
@@ -98,7 +100,7 @@ const PRODUCT_TO_WARDROBE: Record<ProductCategory, WardrobeCategory> = {
 };
 
 /** Garment categories the try-on provider supports (plan section 07). */
-const TRY_ON_CATEGORIES: WardrobeCategory[] = ['jackets', 'shirts', 'knitwear', 'trousers'];
+const TRY_ON_CATEGORIES: WardrobeCategory[] = ['jackets', 'waistcoats', 'shirts', 'knitwear', 'trousers'];
 
 /* ---------------------------------------------------------------------------------- catalog */
 

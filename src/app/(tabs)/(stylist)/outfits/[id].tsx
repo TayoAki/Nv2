@@ -36,6 +36,7 @@ import { colors, radius, space } from '@/theme';
 /** Layers that can replace each other in a swap. */
 const SWAP_GROUP: Record<WardrobeCategory, string> = {
   jackets: 'outer',
+  waistcoats: 'mid',
   knitwear: 'outer',
   shirts: 'top',
   trousers: 'bottom',
@@ -320,6 +321,7 @@ function OutfitMenu({ outfit, visible, onClose }: { outfit: ResolvedOutfit; visi
 function categoryLabel(category: WardrobeCategory) {
   return {
     jackets: 'Jacket',
+    waistcoats: 'Waistcoat',
     shirts: 'Shirt',
     knitwear: 'Knitwear',
     trousers: 'Trousers',

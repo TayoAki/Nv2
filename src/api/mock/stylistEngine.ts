@@ -21,10 +21,12 @@ export type StylistResult =
   | { status: 'ok'; reply: string; outfit: Omit<Outfit, 'id' | 'createdAt'> }
   | { status: 'sparse_closet' | 'no_match'; reply: string; suggestedProductId?: string };
 
-type Slot = 'outer' | 'top' | 'bottom' | 'shoes' | 'accessory';
+type Slot = 'outer' | 'mid' | 'top' | 'bottom' | 'shoes' | 'accessory';
 
 const SLOT_FOR_CATEGORY: Record<WardrobeCategory, Slot> = {
   jackets: 'outer',
+  // A waistcoat is a middle layer: used when the shopper asks to style one.
+  waistcoats: 'mid',
   knitwear: 'outer',
   shirts: 'top',
   trousers: 'bottom',
@@ -51,7 +53,7 @@ function pieceFormality(item: WardrobeItem): number {
   if (/knit|sweater|cardigan/.test(name)) return 0.5;
   if (/belt/.test(name)) return 1;
   if (/oxford shirt|flannel/.test(name)) return 1.1;
-  if (/pocket square|tie/.test(name)) return 2;
+  if (/pocket square|tie|waistcoat|vest/.test(name)) return 2;
   if (/blazer|overcoat|suit|jacket/.test(name)) return 2;
   if (/loafer|derby|oxford|brogue/.test(name)) return 1.6;
   switch (item.category) {
@@ -180,7 +182,7 @@ export function recommend(input: {
     );
   }
 
-  const pieces = (['outer', 'top', 'bottom', 'shoes', 'accessory'] as Slot[])
+  const pieces = (['outer', 'mid', 'top', 'bottom', 'shoes', 'accessory'] as Slot[])
     .map((slot) => chosen[slot])
     .filter((item): item is WardrobeItem => !!item);
 

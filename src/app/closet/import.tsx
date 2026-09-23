@@ -38,6 +38,7 @@ import { colors, radius, space } from '@/theme';
 
 const CATEGORY_OPTIONS: { value: WardrobeCategory; label: string }[] = [
   { value: 'jackets', label: 'Jacket' },
+  { value: 'waistcoats', label: 'Waistcoat' },
   { value: 'shirts', label: 'Shirt' },
   { value: 'knitwear', label: 'Knitwear' },
   { value: 'trousers', label: 'Trousers' },
@@ -47,6 +48,7 @@ const CATEGORY_OPTIONS: { value: WardrobeCategory; label: string }[] = [
 
 const CATEGORY_NOUN: Record<WardrobeCategory, string> = {
   jackets: 'Jacket',
+  waistcoats: 'Waistcoat',
   shirts: 'Shirt',
   knitwear: 'Knit',
   trousers: 'Trousers',
@@ -434,7 +436,15 @@ function DraftReview({
 
 function kindFor(category: WardrobeCategory) {
   return (
-    { jackets: 'jacket', shirts: 'shirt', knitwear: 'knitwear', trousers: 'trousers', shoes: 'shoes', accessories: 'accessory' } as const
+    {
+      jackets: 'jacket',
+      waistcoats: 'waistcoat',
+      shirts: 'shirt',
+      knitwear: 'knitwear',
+      trousers: 'trousers',
+      shoes: 'shoes',
+      accessories: 'accessory',
+    } as const
   )[category];
 }
 

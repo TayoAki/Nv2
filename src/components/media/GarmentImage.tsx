@@ -13,6 +13,7 @@ export type IllustrationKind = GarmentKind | 'person';
 const GLYPHS: Record<IllustrationKind, GlyphNode[]> = {
   jacket: customGlyphs.garmentJacket,
   suit: customGlyphs.garmentJacket,
+  waistcoat: customGlyphs.garmentWaistcoat,
   shirt: customGlyphs.garmentShirt,
   knitwear: customGlyphs.garmentKnit,
   trousers: customGlyphs.garmentTrousers,

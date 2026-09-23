@@ -28,6 +28,7 @@ type Filter = WardrobeCategory | 'all' | 'archived';
 
 const CATEGORY_LABELS: Record<WardrobeCategory, string> = {
   jackets: 'Jackets',
+  waistcoats: 'Waistcoats',
   shirts: 'Shirts',
   knitwear: 'Knitwear',
   trousers: 'Trousers',
@@ -35,7 +36,7 @@ const CATEGORY_LABELS: Record<WardrobeCategory, string> = {
   accessories: 'Accessories',
 };
 
-const CATEGORY_ORDER: WardrobeCategory[] = ['jackets', 'shirts', 'trousers', 'shoes', 'knitwear', 'accessories'];
+const CATEGORY_ORDER: WardrobeCategory[] = ['jackets', 'waistcoats', 'shirts', 'trousers', 'shoes', 'knitwear', 'accessories'];
 
 /** 07 · My closet — /closet */
 export default function ClosetScreen() {

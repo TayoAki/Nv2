@@ -17,7 +17,7 @@ import { Sheet } from '@/components/ui/Sheet';
 import { useAddToBag, useProduct } from '@/data/shop';
 import { track } from '@/lib/analytics';
 import { formatMoney } from '@/lib/format';
-import { openBookFitting } from '@/lib/links';
+import { openBookFitting, openExternal } from '@/lib/links';
 import { useFavorites } from '@/state/favorites';
 import { showToast } from '@/state/toast';
 import { colors, space } from '@/theme';
@@ -184,6 +184,11 @@ function ProductDetails({ product }: { product: Product }) {
           highlight={needsSize}
         />
       </View>
+      {product.sizesAreSamples ? (
+        <AppText variant="caption" color={colors.muted} style={styles.sampleNote}>
+          Sample sizes and stock until the store connection is live.
+        </AppText>
+      ) : null}
 
       {allSoldOut ? (
         <Banner tone="notice" message="Every size is sold out right now. Book a fitting to ask about bespoke options." />
@@ -223,6 +228,30 @@ function ProductDetails({ product }: { product: Product }) {
         <AppText variant="body" color={colors.text}>
           {product.description}
         </AppText>
+        {product.pieces.length > 1 ? (
+          <AppText variant="secondary" color={colors.muted}>
+            Includes {product.pieces.map((piece) => piece.name).join(', ')}.
+          </AppText>
+        ) : null}
+        {product.pieces[0] ? (
+          <AppText variant="secondary" color={colors.muted}>
+            {[product.pieces[0].material, product.pieces[0].pattern, product.pieces[0].fit && `${product.pieces[0].fit} fit`]
+              .filter((part): part is string => !!part)
+              .map((part) => part[0].toUpperCase() + part.slice(1))
+              .join(' · ')}
+          </AppText>
+        ) : null}
+        {product.storeUrl ? (
+          <Button
+            title="View on nyonicouture.com"
+            variant="link"
+            tone="ink"
+            accessibilityRole="link"
+            fullWidth={false}
+            onPress={() => openExternal(product.storeUrl!)}
+            style={styles.storeLink}
+          />
+        ) : null}
         {product.tryOn.scopeNote ? (
           <AppText variant="secondary" color={colors.muted}>
             Try-on: {product.tryOn.scopeNote}
@@ -295,6 +324,12 @@ const styles = StyleSheet.create({
     width: 1,
     height: 36,
     backgroundColor: colors.hairline,
+  },
+  sampleNote: {
+    marginTop: -space.xs,
+  },
+  storeLink: {
+    alignSelf: 'flex-start',
   },
   sizeRow: {
     flexDirection: 'row',

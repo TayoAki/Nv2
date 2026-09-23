@@ -28,7 +28,7 @@ import {
 } from './fixtures';
 
 /** Bump when fixture or storage shapes change; older saved demo data is replaced. */
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const STORAGE_KEY = 'nyoni.demo-db';
 
 export type JobScenario = 'normal' | 'slow' | 'timeout' | 'ai_failure' | 'quota';
@@ -112,9 +112,9 @@ export function createDb(seed: 'demo' | 'empty', now = Date.now()): MockDb {
     bag: demo
       ? [
           {
-            id: 'b-berry-42',
-            productId: 'p-berry-peak-two-piece-suit',
-            variantId: 'p-berry-peak-two-piece-suit-42',
+            id: 'b-nathan-42',
+            productId: 'p-nathan',
+            variantId: 'p-nathan-42',
             quantity: 1,
             priceSeen: usd(895),
           },

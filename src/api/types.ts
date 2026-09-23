@@ -11,7 +11,15 @@ export type Money = { amountMinor: number; currency: CurrencyCode };
 
 export type Occasion = 'wedding' | 'business' | 'black-tie' | 'dinner' | 'everyday';
 
-export type GarmentKind = 'jacket' | 'suit' | 'shirt' | 'trousers' | 'shoes' | 'knitwear' | 'accessory';
+export type GarmentKind =
+  | 'jacket'
+  | 'suit'
+  | 'waistcoat'
+  | 'shirt'
+  | 'trousers'
+  | 'shoes'
+  | 'knitwear'
+  | 'accessory';
 
 /**
  * An image reference. `uri` is a remote or local file URL; `asset` is a bundled image
@@ -23,7 +31,15 @@ export type ColorInfo = { name: string; hex: string };
 
 /* ----------------------------------------------------------------- Catalog (store authoritative) */
 
-export type ProductCategory = 'suits' | 'tuxedos' | 'jackets' | 'shirts' | 'trousers' | 'shoes' | 'accessories';
+export type ProductCategory =
+  | 'suits'
+  | 'tuxedos'
+  | 'jackets'
+  | 'waistcoats'
+  | 'shirts'
+  | 'trousers'
+  | 'shoes'
+  | 'accessories';
 
 export type StockStatus = 'in_stock' | 'low_stock' | 'out_of_stock';
 
@@ -48,6 +64,24 @@ export type TryOnEligibility = {
   reasonIfIneligible?: string;
 };
 
+/**
+ * One wearable piece. A suit is one product but two or three pieces (jacket, trousers,
+ * waistcoat), each with its own cut-out, so pieces can be styled and rendered separately.
+ */
+export type ProductPiece = {
+  key: string;
+  name: string;
+  kind: GarmentKind;
+  color: ColorInfo;
+  pattern: string;
+  material: string;
+  formality: 'formal' | 'smart-casual' | 'casual';
+  fit: string | null;
+  seasons: string[];
+  /** Cut-out on a transparent background, once the image pass has run. */
+  image?: MediaImage;
+};
+
 export type Product = {
   id: string;
   slug: string;
@@ -66,6 +100,12 @@ export type Product = {
   featured: boolean;
   /** Demo fixture: shows "Illustrative product" and "Sample price" labels. */
   isIllustrative: boolean;
+  /** Pieces the product is made of: one for most products, two or three for suits. */
+  pieces: ProductPiece[];
+  /** Sizes and stock are placeholders until the store sync supplies real variants. */
+  sizesAreSamples: boolean;
+  /** The product page on nyonicouture.com. */
+  storeUrl?: string;
   /** Set when the price moved since the shopper last saw it. */
   previousPrice?: Money;
   /** Removed from sale (kept so saved looks and outfits can explain what happened). */
@@ -204,7 +244,14 @@ export type OrderReceipt = {
 
 /* ------------------------------------------------------------------------------------- Closet */
 
-export type WardrobeCategory = 'jackets' | 'shirts' | 'knitwear' | 'trousers' | 'shoes' | 'accessories';
+export type WardrobeCategory =
+  | 'jackets'
+  | 'waistcoats'
+  | 'shirts'
+  | 'knitwear'
+  | 'trousers'
+  | 'shoes'
+  | 'accessories';
 
 export type Availability = 'ready' | 'unavailable';
 
