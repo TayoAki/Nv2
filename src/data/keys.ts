@@ -25,4 +25,5 @@ export const keys = {
   styleProfile: ['style-profile'] as const,
   session: ['session'] as const,
   privacy: ['privacy'] as const,
+  bodyMeasurements: ['body-measurements'] as const,
 };

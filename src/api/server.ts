@@ -51,7 +51,9 @@ export async function http<T>(path: string, init: HttpInit = {}): Promise<T> {
   if (!serverUrl) throw new ApiError('unavailable', 'The Nyoni server isn’t configured.');
   const headers: Record<string, string> = {};
   const raw = typeof Blob !== 'undefined' && init.body instanceof Blob;
-  if (init.body !== undefined) headers['content-type'] = raw ? (init.body as Blob).type || 'image/jpeg' : 'application/json';
+  // FormData sets its own multipart content type (with the boundary).
+  const form = typeof FormData !== 'undefined' && init.body instanceof FormData;
+  if (init.body !== undefined && !form) headers['content-type'] = raw ? (init.body as Blob).type || 'image/jpeg' : 'application/json';
   if (init.auth) {
     const token = await readToken();
     if (!token) throw new ApiError('unauthorized', 'Sign in to the store admin to continue.');
@@ -65,7 +67,7 @@ export async function http<T>(path: string, init: HttpInit = {}): Promise<T> {
     response = await fetch(`${serverUrl}${path}`, {
       method: init.method ?? 'GET',
       headers,
-      body: init.body === undefined ? undefined : raw ? (init.body as Blob) : JSON.stringify(init.body),
+      body: init.body === undefined ? undefined : raw || form ? (init.body as Blob | FormData) : JSON.stringify(init.body),
       signal: controller.signal,
       // The app decides how often to refresh (the catalog sync); never reuse a stale response.
       cache: 'no-store',

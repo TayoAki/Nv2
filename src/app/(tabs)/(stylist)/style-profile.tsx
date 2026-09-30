@@ -1,4 +1,4 @@
-import { useNavigation } from 'expo-router';
+import { router, useNavigation } from 'expo-router';
 import { usePreventRemove } from 'expo-router/react-navigation';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -14,6 +14,7 @@ import { Banner, StateView } from '@/components/ui/Feedback';
 import { TextField } from '@/components/ui/TextField';
 import { ToggleRow } from '@/components/ui/Toggle';
 import { useWardrobe } from '@/data/closet';
+import { useBodyMeasurements } from '@/data/measurements';
 import { useStyleProfile, useUpdateStyleProfile } from '@/data/stylist';
 import { confirm } from '@/lib/confirm';
 import { OCCASION_LABELS } from '@/lib/format';
@@ -119,6 +120,8 @@ function PreferencesForm({ profile }: { profile: StyleProfile }) {
 
       {collage.length >= 3 ? <OutfitCollage pieces={collage} layout="row" aspectRatio={2.6} /> : null}
 
+      <MeasurementsSummary />
+
       <Section title="Occasions" hint="What you dress for most. Choose any.">
         <View style={styles.chips}>
           {OCCASIONS.map((value) => (
@@ -198,6 +201,25 @@ function PreferencesForm({ profile }: { profile: StyleProfile }) {
         Preferences are only what you choose here. Nothing is inferred from your photos.
       </AppText>
     </View>
+  );
+}
+
+/** Saved measurements and suggested sizes, or a way to measure. */
+function MeasurementsSummary() {
+  const body = useBodyMeasurements();
+  if (body.isPending || body.isError) return null;
+  const sizes = body.data?.suggestedSizes;
+  return (
+    <Section
+      title="Your measurements"
+      hint={sizes ? `Suggested suit ${sizes.jacket} · trousers ${sizes.trouserWaistIn} waist` : 'Two photos and your height give your suit size.'}>
+      <Button
+        title={sizes ? 'View measurements' : 'Measure me'}
+        icon="ruler"
+        variant="outline"
+        onPress={() => router.push('/measure')}
+      />
+    </Section>
   );
 }
 

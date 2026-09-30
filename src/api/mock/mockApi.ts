@@ -12,6 +12,7 @@ import {
   getImport,
   getRender,
   keepRender,
+  measureOnServer,
   startImport,
   startRender,
   uploadImage,
@@ -24,6 +25,7 @@ import type {
   Bag,
   BagLine,
   BagNotice,
+  BodyMeasurements,
   ColorInfo,
   GarmentKind,
   GarmentRef,
@@ -777,9 +779,55 @@ function privacyView(db: MockDb): PrivacyOverview {
     savedPreviewCount: db.looks.filter((l) => l.saved && Date.parse(l.expiresAt) > now()).length,
     closetPhotoCount: db.wardrobe.reduce((sum, item) => sum + item.photos.length, 0),
     stylistMessageCount: db.thread.length,
+    hasBodyMeasurements: !!db.bodyMeasurements,
     reuseTryOnPhoto: db.reuseTryOnPhoto,
     accountDeletion: db.accountDeletion,
   });
+}
+
+/* ------------------------------------------------------------------------ body measurements */
+
+/**
+ * Sample measurements for the demo build, from typical proportions for the height. They're
+ * labelled as samples in the app: nothing is measured without the measuring service.
+ */
+function sampleMeasurements(heightCm: number, consentVersion: string): BodyMeasurements {
+  const r = (ratio: number) => Math.round(heightCm * ratio * 10) / 10;
+  const measurementsCm = {
+    chest: r(0.555),
+    waist: r(0.48),
+    trouserWaist: r(0.5),
+    hips: r(0.55),
+    neck: r(0.215),
+    thigh: r(0.31),
+    shoulderWidth: r(0.255),
+    sleeve: r(0.34),
+    inseam: r(0.45),
+    outseam: r(0.59),
+  };
+  return {
+    heightCm,
+    measurementsCm,
+    suggestedSizes: suggestedFor(measurementsCm, heightCm),
+    calibrated: false,
+    consentVersion,
+    measuredAt: iso(),
+    isDemo: true,
+  };
+}
+
+function suggestedFor(m: Record<string, number>, heightCm: number): BodyMeasurements['suggestedSizes'] {
+  const inch = (cm: number) => cm / 2.54;
+  const even = (n: number) => 2 * Math.round(n / 2);
+  const length = heightCm < 173 ? 'S' : heightCm < 186 ? 'R' : 'L';
+  return {
+    jacket: `${even(inch(m.chest))}${length}`,
+    jacketChestIn: Math.round(inch(m.chest) * 10) / 10,
+    trouserWaistIn: even(inch(m.trouserWaist)),
+    inseamIn: Math.round(inch(m.inseam)),
+    shirtNeckIn: Math.round(inch(m.neck) * 2) / 2,
+    shirtSleeveIn: Math.round(inch(m.shoulderWidth / 2 + m.sleeve)),
+  };
 }
 
 /** Deletes the server copies of try-on photos; a failure is reported as "retrying". */
@@ -930,6 +978,46 @@ export const mockApi: NyoniApi = {
     db.photos = db.photos.filter((p) => p.id !== id);
     persist();
     return { providerCleanup: cleanup === 'retrying' ? cleanup : providerCleanup() };
+  },
+
+  /* Body measurements */
+  async measureBody({ front, side, heightCm, consentVersion }) {
+    const db = await request('ai');
+    if (!Number.isFinite(heightCm) || heightCm < 120 || heightCm > 230) {
+      throw new ApiError('validation', 'Enter your height between 120 and 230 cm.');
+    }
+    for (const photo of [front, side]) {
+      if (photo.fileSize && photo.fileSize > MAX_UPLOAD_BYTES) {
+        throw new ApiError('validation', 'This photo is larger than 10 MB. Choose a smaller photo.');
+      }
+    }
+    // "AI failures" scenario: the front photo fails the pose check, as a real one can.
+    if (scenario() === 'ai_failure') {
+      throw new ApiError('validation', "Hold your arms out and down in an A shape so there's a gap between your arms and body.");
+    }
+    let result: BodyMeasurements;
+    if (serverAi()) {
+      const status = await aiStatus();
+      if (!status?.features.measurements) throw new ApiError('unavailable', "Measuring isn't available yet. Please try again later.");
+      const measured = await measureOnServer({ front, side, heightCm });
+      result = { ...measured, measurementsCm: measured.measurementsCm, consentVersion, measuredAt: iso(), isDemo: false };
+    } else {
+      result = sampleMeasurements(heightCm, consentVersion);
+    }
+    db.bodyMeasurements = result;
+    persist();
+    return clone(result);
+  },
+
+  async getBodyMeasurements() {
+    const db = await request();
+    return clone(db.bodyMeasurements ?? null);
+  },
+
+  async deleteBodyMeasurements() {
+    const db = await request('write');
+    db.bodyMeasurements = null;
+    persist();
   },
 
   /* Try-on */

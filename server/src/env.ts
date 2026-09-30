@@ -37,6 +37,10 @@ export const env = {
   dailyImageLimit: Number(process.env.DAILY_IMAGE_LIMIT ?? 300),
   importsPerHour: Number(process.env.IMPORTS_PER_HOUR ?? 10),
   stylistPerHour: Number(process.env.STYLIST_PER_HOUR ?? 60),
+  /** Body measurement service (measure/), reached over Railway's private network. */
+  measureUrl: (process.env.MEASURE_URL || '').replace(/\/+$/, '') || null,
+  measureToken: process.env.MEASURE_TOKEN || null,
+  measurementsPerHour: Number(process.env.MEASUREMENTS_PER_HOUR ?? 10),
   /** Retry delay grows as base × attempts² seconds (5 s, 20 s, …). */
   retryBaseSeconds: Number(process.env.RETRY_BASE_SECONDS ?? 5),
   /** Where the capsule photos live (copied into the image from assets/collection). */

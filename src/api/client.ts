@@ -1,6 +1,7 @@
 import type {
   Availability,
   Bag,
+  BodyMeasurements,
   CheckoutHandoff,
   ColorInfo,
   GarmentRef,
@@ -98,6 +99,11 @@ export interface NyoniApi {
 
   /** Preview credits left on this device (1 per preview), or null when previews aren't metered. */
   getPreviewCredits(): Promise<number | null>;
+
+  /* Body measurements: POST /measurements (front + side photo, height). Photos aren't kept. */
+  measureBody(input: { front: LocalPhoto; side: LocalPhoto; heightCm: number; consentVersion: string }): Promise<BodyMeasurements>;
+  getBodyMeasurements(): Promise<BodyMeasurements | null>;
+  deleteBodyMeasurements(): Promise<void>;
 
   /* Try-on jobs: POST /try-ons, GET /try-ons/:id, POST /try-ons/:id/cancel */
   createTryOn(input: { photoId: string; garment: GarmentRef; idempotencyKey: string }): Promise<TryOnJob>;

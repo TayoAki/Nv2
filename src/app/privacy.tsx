@@ -124,6 +124,19 @@ export default function PrivacyScreen() {
               onPress={() => router.navigate('/closet')}
               style={styles.row}
             />
+            <Divider inset={space.md} />
+            <ListRow
+              icon="ruler"
+              iconBadge
+              title="Body measurements"
+              subtitle={
+                data.hasBodyMeasurements
+                  ? 'Measurements saved. The photos were deleted after measuring.'
+                  : 'None saved. Measuring photos are never kept.'
+              }
+              onPress={() => router.push('/measure')}
+              style={styles.row}
+            />
           </Card>
 
           <SectionLabel>Preferences</SectionLabel>

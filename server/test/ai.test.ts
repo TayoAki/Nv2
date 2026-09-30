@@ -137,7 +137,7 @@ describe('simulated provider', () => {
 
   it('reports its status', async () => {
     const status = await (await call('/v1/ai/status')).json();
-    assert.deepEqual(status, { provider: 'simulated', features: { renders: true, imports: true, stylist: false } });
+    assert.deepEqual(status, { provider: 'simulated', features: { renders: true, imports: true, stylist: false, measurements: false } });
   });
 
   it('renders end to end, labelled simulated, charging credits', async () => {
@@ -561,5 +561,87 @@ describe('stylist with OpenRouter', () => {
     const body = await (await call('/v1/stylist', { method: 'POST', device, json: stylistBody({ text: 'Black tie gala' }) })).json();
     assert.equal(body.status, 'no_match');
     assert.equal(body.reply, 'Nothing black tie here.');
+  });
+});
+
+/* ---------------------------------------------------------------- body measurements */
+
+describe('body measurements', () => {
+  const seen: { auth?: string; fields: string[] }[] = [];
+  let reply: { status: number; json: unknown } = { status: 200, json: {} };
+  const service = createServer((req, res) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk) => chunks.push(chunk));
+    req.on('end', () => {
+      const body = Buffer.concat(chunks).toString('latin1');
+      seen.push({ auth: req.headers.authorization, fields: [...body.matchAll(/; name="([^"]+)"/g)].map((m) => m[1]) });
+      res.writeHead(reply.status, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(reply.json));
+    });
+  });
+  const ok = {
+    heightCm: 180,
+    measurementsCm: { chest: 98.2, waist: 84.1, trouserWaist: 90.3, sleeve: 62, inseam: 81 },
+    suggestedSizes: { jacket: '38R', jacketChestIn: 38.7, trouserWaistIn: 36 },
+    detail: { chest: { widthCm: 33, depthCm: 25 } },
+    calibrated: false,
+  };
+
+  before(async () => {
+    await new Promise<void>((resolve) => service.listen(0, '127.0.0.1', resolve));
+    env.measureUrl = `http://127.0.0.1:${(service.address() as AddressInfo).port}`;
+    env.measureToken = 'measure-secret';
+  });
+  after(() => {
+    service.close();
+    env.measureUrl = null;
+    env.measureToken = null;
+  });
+
+  const send = async (device: string, heightCm = '180') => {
+    const form = new FormData();
+    form.set('front', new Blob([await photo(600, 1200)], { type: 'image/jpeg' }), 'front.jpg');
+    form.set('side', new Blob([await photo(600, 1200)], { type: 'image/jpeg' }), 'side.jpg');
+    form.set('heightCm', heightCm);
+    const res = await app.request('/v1/measurements', { method: 'POST', body: form, headers: { authorization: `Device ${device}` } });
+    return { status: res.status, body: await res.json() };
+  };
+
+  it('forwards both photos and the height with the service token', async () => {
+    reply = { status: 200, json: ok };
+    const device = await newDevice();
+    const res = await send(device);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.measurementsCm.chest, 98.2);
+    assert.equal(res.body.suggestedSizes.jacket, '38R');
+    assert.equal(res.body.detail, undefined);
+    assert.equal(seen.at(-1)!.auth, 'Bearer measure-secret');
+    assert.deepEqual(seen.at(-1)!.fields, ['front', 'side', 'heightCm']);
+    const { rows } = await pool.query("select count(*)::int as n from blobs where kind not in ('render','cutout','person','closet')");
+    assert.equal(rows[0].n, 0, 'photos are not stored');
+  });
+
+  it('passes on what to fix when a photo cannot be measured', async () => {
+    reply = { status: 422, json: { error: { code: 'arms_touching', message: 'Hold your arms out and down in an A shape.' } } };
+    const res = await send(await newDevice());
+    assert.equal(res.status, 400);
+    assert.match(res.body.error.message, /arms out/);
+  });
+
+  it('checks the height and limits repeats', async () => {
+    reply = { status: 200, json: ok };
+    const device = await newDevice();
+    assert.equal((await send(device, '90')).status, 400);
+    const limit = env.measurementsPerHour;
+    env.measurementsPerHour = 1;
+    assert.equal((await send(device)).status, 200);
+    assert.equal((await send(device)).status, 429);
+    env.measurementsPerHour = limit;
+  });
+
+  it('reports unavailable when the service is down', async () => {
+    reply = { status: 500, json: {} };
+    const res = await send(await newDevice());
+    assert.equal(res.status, 503);
   });
 });

@@ -4,6 +4,7 @@ import type { InventoryOverride } from '../catalog/capsule';
 
 import type {
   AdminSession,
+  BodyMeasurements,
   BagLine,
   ColorInfo,
   GarmentKind,
@@ -104,6 +105,8 @@ export type MockDb = {
   adminSession: AdminSession | null;
   bag: StoredBagLine[];
   photos: PersonPhoto[];
+  /** Estimated from photos (the photos themselves are never kept). */
+  bodyMeasurements?: BodyMeasurements | null;
   jobs: StoredJob[];
   looks: Look[];
   handoffs: StoredHandoff[];
@@ -146,6 +149,7 @@ export function createDb(
         ]
       : [],
     photos: [],
+    bodyMeasurements: null,
     jobs: [],
     looks: demo ? buildDemoLooks(now) : [],
     handoffs: [],

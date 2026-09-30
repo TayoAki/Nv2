@@ -14,9 +14,11 @@ import { Divider } from '@/components/ui/Card';
 import { Banner, Skeleton, StateView } from '@/components/ui/Feedback';
 import { IconButton } from '@/components/ui/IconButton';
 import { Sheet } from '@/components/ui/Sheet';
+import { useBodyMeasurements } from '@/data/measurements';
 import { useAddToBag, useProduct } from '@/data/shop';
 import { track } from '@/lib/analytics';
 import { formatMoney } from '@/lib/format';
+import { suggestedCode, suggestedVariant } from '@/lib/sizing';
 import { openBookFitting, openExternal } from '@/lib/links';
 import { useFavorites } from '@/state/favorites';
 import { showToast } from '@/state/toast';
@@ -97,6 +99,8 @@ export default function ProductScreen() {
 function ProductDetails({ product }: { product: Product }) {
   const [variantId, setVariantId] = useState<string | null>(null);
   const [needsSize, setNeedsSize] = useState(false);
+  const body = useBodyMeasurements();
+  const suggested = suggestedVariant(product, body.data);
   const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const addToBag = useAddToBag();
@@ -183,9 +187,11 @@ function ProductDetails({ product }: { product: Product }) {
         <SizeSelector
           variants={product.variants}
           selectedId={variantId}
+          suggestedId={suggested?.id ?? null}
           onSelect={selectVariant}
           highlight={needsSize}
         />
+        <FitHint product={product} suggestedCode={suggested?.size.code ?? null} measured={!!body.data} />
       </View>
       {product.sizeSource === 'placeholder' ? (
         <AppText variant="caption" color={colors.muted} style={styles.sampleNote}>
@@ -306,7 +312,54 @@ function Thumbnails({ product }: { product: Product }) {
   );
 }
 
+/** "Suggested for you" from saved measurements, or a way to get them. Never picks the size. */
+function FitHint({ product, suggestedCode: code, measured }: { product: Product; suggestedCode: string | null; measured: boolean }) {
+  const body = useBodyMeasurements();
+  const wanted = body.data ? suggestedCode(product, body.data) : null;
+  if (!['suits', 'tuxedos', 'jackets', 'waistcoats', 'trousers'].includes(product.category)) return null;
+  if (!measured) {
+    return (
+      <Button
+        title="Find my size from 2 photos"
+        icon="ruler"
+        variant="link"
+        tone="ink"
+        fullWidth={false}
+        onPress={() => router.push({ pathname: '/measure', params: { productId: product.id } })}
+        style={styles.fitLink}
+      />
+    );
+  }
+  return (
+    <View style={styles.fitHint}>
+      <AppText variant="secondary" color={colors.muted} style={styles.fitText}>
+        {code
+          ? `Suggested for you: ${code}, from your measurements.`
+          : `Your measurements suggest ${wanted}, which this style doesn't come in.`}
+      </AppText>
+      <Button
+        title="Measurements"
+        variant="link"
+        tone="muted"
+        fullWidth={false}
+        onPress={() => router.push({ pathname: '/measure', params: { productId: product.id } })}
+      />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  fitHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+  },
+  fitText: {
+    flex: 1,
+  },
+  fitLink: {
+    alignSelf: 'flex-start',
+  },
   loading: {
     gap: space.md,
     paddingTop: space.md,

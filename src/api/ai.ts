@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 import { ApiError } from './errors';
 import { http, readStored, serverUrl, writeStored, type HttpInit } from './server';
 
@@ -11,7 +13,7 @@ const DEVICE_KEY = 'nyoni.device-token';
 
 export type AiStatus = {
   provider: 'openrouter' | 'simulated';
-  features: { renders: boolean; imports: boolean; stylist: boolean };
+  features: { renders: boolean; imports: boolean; stylist: boolean; measurements?: boolean };
 };
 
 export type ServerGarment =
@@ -158,5 +160,58 @@ export const startImport = (photoBlobIds: string[], existing: ClosetReference[])
   asDevice<ServerImport>('/v1/imports', { method: 'POST', body: { photoBlobIds, existing } });
 
 export const getImport = (id: string) => asDevice<ServerImport>(`/v1/imports/${encodeURIComponent(id)}`);
+
+export type ServerMeasurements = {
+  heightCm: number;
+  measurementsCm: Record<string, number>;
+  suggestedSizes: {
+    jacket: string;
+    jacketChestIn: number;
+    trouserWaistIn: number;
+    inseamIn: number;
+    shirtNeckIn: number | null;
+    shirtSleeveIn: number | null;
+  };
+  calibrated: boolean;
+};
+
+/** Adds a local photo to a multipart form: a Blob on web, a file reference on iOS and Android. */
+async function appendPhoto(form: FormData, name: string, uri: string, mimeType?: string) {
+  if (Platform.OS === 'web') {
+    let blob: Blob;
+    try {
+      blob = await (await fetch(uri)).blob();
+    } catch {
+      throw new ApiError('validation', "We couldn't read this photo. Choose it again.");
+    }
+    form.append(name, blob, `${name}.jpg`);
+  } else {
+    // React Native's FormData streams the file from its URI.
+    form.append(name, { uri, name: `${name}.jpg`, type: mimeType ?? 'image/jpeg' } as unknown as Blob);
+  }
+}
+
+/** Front and side photos plus height; the server measures and discards the photos. */
+export async function measureOnServer(input: {
+  front: { uri: string; mimeType?: string };
+  side: { uri: string; mimeType?: string };
+  heightCm: number;
+}) {
+  const build = async () => {
+    const form = new FormData();
+    await appendPhoto(form, 'front', input.front.uri, input.front.mimeType);
+    await appendPhoto(form, 'side', input.side.uri, input.side.mimeType);
+    form.append('heightCm', String(input.heightCm));
+    return form;
+  };
+  // A new form for each attempt: a retry after re-registering can't reuse a sent body.
+  try {
+    return await http<ServerMeasurements>('/v1/measurements', { method: 'POST', body: await build(), device: await deviceToken(), timeoutMs: 60_000 });
+  } catch (error) {
+    if (!(error instanceof ApiError && error.code === 'unauthorized')) throw error;
+    await writeStored(DEVICE_KEY, null);
+    return http<ServerMeasurements>('/v1/measurements', { method: 'POST', body: await build(), device: await deviceToken(), timeoutMs: 60_000 });
+  }
+}
 
 export const askStylist = (body: unknown) => asDevice<StylistReply>('/v1/stylist', { method: 'POST', body, timeoutMs: 90_000 });

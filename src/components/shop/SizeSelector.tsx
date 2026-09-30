@@ -7,6 +7,8 @@ import { colors, radius, space } from '@/theme';
 type Props = {
   variants: Variant[];
   selectedId: string | null;
+  /** From the shopper's measurements: marked on the tile, never selected for them. */
+  suggestedId?: string | null;
   onSelect: (variant: Variant) => void;
   /** Visually flag the grid when the shopper tries to continue without a size. */
   highlight?: boolean;
@@ -26,7 +28,7 @@ function secondaryLabel(variant: Variant): string | null {
 }
 
 /** Explicit size choice. The app never selects the first size silently (plan section 08). */
-export function SizeSelector({ variants, selectedId, onSelect, highlight = false }: Props) {
+export function SizeSelector({ variants, selectedId, suggestedId = null, onSelect, highlight = false }: Props) {
   const selected = variants.find((v) => v.id === selectedId);
   return (
     <View style={styles.wrap}>
@@ -35,7 +37,8 @@ export function SizeSelector({ variants, selectedId, onSelect, highlight = false
           const soldOut = variant.stock === 'out_of_stock';
           const low = variant.stock === 'low_stock';
           const isSelected = variant.id === selectedId;
-          const detail = soldOut ? 'Sold out' : low ? `${variant.stockCount} left` : secondaryLabel(variant);
+          const isSuggested = variant.id === suggestedId && !soldOut;
+          const detail = soldOut ? 'Sold out' : isSuggested && !isSelected ? 'For you' : low ? `${variant.stockCount} left` : secondaryLabel(variant);
           const text = isSelected ? colors.ivory : soldOut ? colors.disabledText : colors.ink;
           return (
             <Pressable
@@ -44,9 +47,10 @@ export function SizeSelector({ variants, selectedId, onSelect, highlight = false
               disabled={soldOut}
               accessibilityRole="radio"
               accessibilityState={{ checked: isSelected, disabled: soldOut }}
-              accessibilityLabel={`${variant.size.label}${soldOut ? ', sold out' : low ? `, only ${variant.stockCount} left` : ''}`}
+              accessibilityLabel={`${variant.size.label}${soldOut ? ', sold out' : low ? `, only ${variant.stockCount} left` : ''}${isSuggested ? ', suggested for you' : ''}`}
               style={({ pressed }) => [
                 styles.tile,
+                isSuggested && !isSelected && styles.tileSuggested,
                 isSelected && styles.tileSelected,
                 soldOut && styles.tileSoldOut,
                 highlight && !selectedId && styles.highlight,
@@ -64,7 +68,7 @@ export function SizeSelector({ variants, selectedId, onSelect, highlight = false
                 <AppText
                   variant="caption"
                   numberOfLines={1}
-                  color={isSelected ? colors.champagne : low ? colors.bronze : colors.muted}>
+                  color={isSelected ? colors.champagne : low || isSuggested ? colors.bronze : colors.muted}>
                   {detail}
                 </AppText>
               ) : null}
@@ -110,6 +114,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,
+  },
+  tileSuggested: {
+    borderColor: colors.champagne,
+    borderWidth: 2,
   },
   tileSelected: {
     backgroundColor: colors.ink,

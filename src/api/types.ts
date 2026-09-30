@@ -400,6 +400,44 @@ export type StyleProfile = {
   updatedAt: string;
 };
 
+/* ------------------------------------------------------------------------- Body measurements */
+
+export type BodyMeasurementName =
+  | 'chest'
+  | 'waist'
+  | 'trouserWaist'
+  | 'hips'
+  | 'neck'
+  | 'thigh'
+  | 'shoulderWidth'
+  | 'sleeve'
+  | 'inseam'
+  | 'outseam';
+
+/**
+ * Estimated from a front and a side photo (the photos are deleted straight after). Kept
+ * separate from try-on photos and stylist personalization, with its own consent.
+ */
+export type BodyMeasurements = {
+  heightCm: number;
+  measurementsCm: Partial<Record<BodyMeasurementName, number>>;
+  suggestedSizes: {
+    /** US suit size with length, e.g. "40R". */
+    jacket: string;
+    jacketChestIn: number;
+    trouserWaistIn: number;
+    inseamIn: number;
+    shirtNeckIn: number | null;
+    shirtSleeveIn: number | null;
+  };
+  /** False until the method is calibrated against tape measurements. */
+  calibrated: boolean;
+  consentVersion: string;
+  measuredAt: string;
+  /** Sample values from the demo build (no measuring service connected). */
+  isDemo: boolean;
+};
+
 /* ---------------------------------------------------------------------------- Account & privacy */
 
 export type Session =
@@ -413,6 +451,7 @@ export type PrivacyOverview = {
   savedPreviewCount: number;
   closetPhotoCount: number;
   stylistMessageCount: number;
+  hasBodyMeasurements: boolean;
   reuseTryOnPhoto: boolean;
   accountDeletion: 'none' | 'pending';
 };

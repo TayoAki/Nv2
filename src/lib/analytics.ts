@@ -16,7 +16,9 @@ export type AnalyticsEvent =
   | 'fitting_link_opened'
   | 'closet_item_saved'
   | 'outfit_saved'
-  | 'stylist_request';
+  | 'stylist_request'
+  | 'measurement_completed'
+  | 'measurement_failed';
 
 type Props = Record<string, string | number | boolean | undefined>;
 

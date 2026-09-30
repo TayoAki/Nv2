@@ -57,6 +57,7 @@ export default function RootLayout() {
               <Stack.Screen name="(tabs)" />
               {/* Focused steps without the tab bar. */}
               <Stack.Screen name="photo" />
+              <Stack.Screen name="measure" />
               <Stack.Screen name="closet/import" />
               <Stack.Screen name="privacy" />
               <Stack.Screen name="checkout" options={{ presentation: 'modal' }} />
