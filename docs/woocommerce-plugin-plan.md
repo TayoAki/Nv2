@@ -3,12 +3,13 @@
 How the Nyoni Couture app works with the WooCommerce store, and the spec for the **Nyoni App Bridge** WordPress plugin.
 
 - **Who builds what:** Nyoni's developer builds the plugin (section 4). The app and server side (section 5) are built in this repo.
-- **Status:** plan, version 2. Nothing is installed on the store yet.
+- **Status:** plan, version 3. Nothing is installed on the store yet.
+- **New in version 3:** guest and member modes (2a), purchase history into the closet, in-app account deletion (4.8), the app reviewer account (4.9), and the app store rules on AI consent and account deletion (9).
 
 ## Contents
 
 1. [Decisions](#1-decisions)
-2. [Tiers and what they unlock](#2-tiers-and-what-they-unlock)
+2. [Tiers and what they unlock](#2-tiers-and-what-they-unlock), and [guests and members](#2a-guests-and-members)
 3. [How it fits together](#3-how-it-fits-together)
 4. [Plugin spec (for Nyoni's developer)](#4-plugin-spec-for-nyonis-developer)
 5. [App and server side (built in this repo)](#5-app-and-server-side-built-in-this-repo)
@@ -39,6 +40,19 @@ How the Nyoni Couture app works with the WooCommerce store, and the spec for the
 - The numbers can be changed on the server without an app update. They're sized to keep AI cost at about 20% of the $99 (see the cost notes in the README).
 - **Nyoni sets the Club perks.** Perks that happen in the real world make the membership stronger, and they're handled by the store, not the app.
 - Credits belong to the **member account**, not the phone.
+
+## 2a. Guests and members
+
+| | **Guest** (no account) | **Member** (signed in with their Nyoni account) |
+| --- | --- | --- |
+| Closet | An **example closet** of Nyoni pieces, clearly labelled as examples, with a "Hide examples" switch, plus anything they add from photos | **Their Nyoni purchases**, pulled from the store (`customer.orders`, 4.3), plus anything they add. No examples. |
+| Where data is kept | On the phone only | On the Nyoni server: works on any phone and survives a reinstall |
+| Stylist, try-on, scan | Work, using the examples and their own pieces | Work, using their real wardrobe |
+| Moving to an account | On first sign-in, what they added as a guest moves into the account; examples are dropped | |
+| Deleting | "Delete my data" clears the phone and the server copies of their photos | "Delete my account" (4.8) deletes the store account and everything the app server holds |
+
+- **Purchases in the closet:** each purchased item becomes a closet piece with the store's product photo. It shows "Ordered" until the order is completed, then "Owned". Refunded or cancelled items are removed.
+- **A member with no purchases** starts with an empty closet and can switch on the examples.
 
 ## 3. How it fits together
 
@@ -151,6 +165,10 @@ $sig  = base64_encode( hash_hmac( 'sha256', $ts . '.' . $body, $secret, true ) )
 **`customer.orders`**
 - **When:** every successful login hand-off (4.4), after the redirect is prepared. Also send it when a guest order is linked to an account.
 - **Data:** `{ "customer": Customer, "orders": [ Order, … ] }` with the customer's last 50 orders in any status. The server removes duplicates.
+
+**`account.deleted`**
+- **When:** the shopper confirms deletion on the hand-off page (4.8).
+- **Data:** `{ "customer": { "id": 123, "email": "…" }, "requestedAt": "2026-10-01T12:00:00Z" }`. The server deletes everything it holds for that member.
 
 **`membership.updated`**
 - **When:**
@@ -271,6 +289,31 @@ Create these in WooCommerce → Settings → Advanced → Webhooks. **Status: Ac
 - **Secret:** the same value for all of them. The server stores it as `WOO_WEBHOOK_SECRET`.
 - **If product webhooks don't include variations** on your setup, the plugin should also send a single-product `catalog.batch` on `woocommerce_update_product` and `woocommerce_update_product_variation` (debounced to one send per product per minute).
 
+### 4.8 Account deletion hand-off page (required by Apple and Google)
+
+Apple (guideline 5.1.1(v)) and Google Play require apps that let people create an account to also let them **start deleting it from inside the app**. Accounts are created through the store's login page, which the app opens, so the plugin provides the deletion step.
+
+**Route:** `GET /nyoni-app-delete-account/?state=…&return=…`, with the same parameter rules and allowed return URLs as 4.4.
+
+**Steps**
+1. **Sign in:** if the visitor isn't logged in, send them to the My Account login and back, as in 4.4.
+2. **Confirm:** show a plain confirmation page: "Delete your Nyoni account? Your order history is kept as the law requires; everything else is erased." with **Delete my account** and **Cancel** buttons. Use a WordPress nonce on the form.
+3. **On Delete:**
+   - create a WordPress personal-data erasure request for the user (`wp_create_user_request( $email, 'remove_personal_data' )`) and mark it confirmed, so it appears under Tools → Erase Personal Data for the store team to process, or process it immediately if Nyoni prefers;
+   - send the bridge event **`account.deleted`** `{ "customer": { "id": 123, "email": "…" }, "requestedAt": "…" }` (4.3 signing), so the app server deletes the member's closet, looks, measurements, chat and photos;
+   - log the customer out.
+4. **Redirect** to `return` plus `deleted=1&state=<state>`. The app signs out and shows "Your account is being deleted".
+5. **On Cancel:** redirect to `return` plus `cancelled=1&state=<state>`.
+
+**Note:** WooCommerce keeps order records for tax purposes; the erasure tool anonymises them. Nyoni decides how long orders are retained, and the privacy policy should say so.
+
+### 4.9 Test account for app review (required by Apple and Google)
+
+Reviewers must be able to sign in. On the **live** store, create a customer account for them:
+- **Email:** for example `appreview@nyonicouture.com`. Its password goes into App Store Connect and Google Play Console review notes, not into the repo or chat.
+- **Orders:** one completed test order with two or three capsule pieces (refunded or marked as test, so stock isn't affected), so the reviewer sees purchases arrive in the closet.
+- **Keep it working:** don't delete this account while a review is open.
+
 ### 4.7 Acceptance checklist for the plugin
 
 - [ ] Activation generates a secret; Test connection returns "Connected" against the staging server.
@@ -284,6 +327,8 @@ Create these in WooCommerce → Settings → Advanced → Webhooks. **Status: Ac
 - [ ] Events retry after the server is briefly unavailable.
 - [ ] No secret, token, email or address appears in the plugin log or PHP error log.
 - [ ] Works with the classic and the block checkout, and with HPOS on.
+- [ ] `/nyoni-app-delete-account/` asks to confirm, creates the erasure request, sends `account.deleted`, logs out and returns to the app; Cancel returns without deleting.
+- [ ] Signing in as the review account shows its test order's pieces in the app's closet.
 
 ## 5. App and server side (built in this repo)
 
@@ -291,6 +336,7 @@ Create these in WooCommerce → Settings → Advanced → Webhooks. **Status: Ac
 - `POST /v1/woo/webhooks`: checks `X-WC-Webhook-Signature`, and updates products, variations and orders.
 - `POST /v1/woo/bridge`: checks `X-Nyoni-Signature` and timestamp, ignores repeated event IDs, and handles the four event types.
 - `POST /v1/auth/nyoni`: checks the login token (signature, `aud`, `exp`, `state`, `jti`), creates or links the member and returns an app session.
+- `POST /v1/account/delete-complete` (from the `account.deleted` event): deletes the member's closet, looks, outfits, measurements, chat and stored photos.
 - `POST /v1/checkout`: re-checks the bag against the live catalogue and returns the checkout link with a new `nyoni_app` ref.
 - **Catalogue:** served from the store's data instead of the CSV export. AI cut-out photos stay matched by product slug.
 - **Accounts:** member accounts, sessions, closet, looks and outfits move to the server, so they survive reinstalls and work across devices.
@@ -298,6 +344,8 @@ Create these in WooCommerce → Settings → Advanced → Webhooks. **Status: Ac
 
 **App**
 - **Sign-in:** "Sign in with Nyoni" replaces the demo sign-in link, and the guest-to-account move stays.
+- **Delete my account:** opens the deletion hand-off (4.8) in the in-app browser, then signs out.
+- **Guest mode (already built for Beta 1):** labelled example closet with a hide switch; "Delete my data" for guests.
 - **Checkout:** a real checkout through the in-app browser replaces the demo checkout form. The order screen follows the store's order status.
 - **Closet:** filled from purchases. New members start with an empty closet instead of the sample pieces.
 - **Nyoni Club screen:** shows benefits and status, and a link to join only where Apple allows it (section 9).
@@ -326,7 +374,13 @@ Create these in WooCommerce → Settings → Advanced → Webhooks. **Status: Ac
 
 **Content**
 
-12. An updated **privacy policy** covering the app: try-on photos, 24-hour deletion, AI processing, and account linking.
+12. **Privacy policy and terms:** the app links to https://nyonicouture.com/privacy-policy/ and https://nyonicouture.com/terms-and-conditions/. Make sure the privacy policy covers the app:
+    - try-on and closet photos, and 24-hour deletion of try-on photos;
+    - body measurements from the scan, with the photos deleted straight after;
+    - AI processing by OpenRouter, OpenAI and Google;
+    - account linking and purchase history in the app;
+    - how to delete an account.
+13. **The app reviewer account** (4.9).
 
 ## 7. Testing and rollout
 
@@ -370,6 +424,17 @@ Create these in WooCommerce → Settings → Advanced → Webhooks. **Status: Ac
 - **Linking to the join page from the app:** in the US, a court ruling in 2025 lets apps link to web purchases. In December 2025 an appeals court allowed Apple to charge some commission on linked purchases, with the amount still being settled. Rules differ outside the US.
 - **Default:** the app describes Club benefits and says members sign in with their Nyoni account. A "Join on nyonicouture.com" button appears only in regions where Apple's rules at submission allow it, controlled by a server setting so it can change without an app update.
 - **Real-world perks** (alterations, discounts, early access) strengthen the Club. They're delivered by the store, not the app.
+
+**Personal data sent to third-party AI (Apple 5.1.2(i), November 2025).**
+- **What Apple requires:** before anything is sent, the app must name the AI providers, say what is sent, and get explicit permission, which users can withdraw.
+- **What the app does (Beta 1):**
+  - asks once before the first AI feature, naming OpenRouter, OpenAI and Google, and listing what's sent (photos you choose, closet photos, stylist messages and closet item names);
+  - lets users withdraw that permission under Photos and privacy.
+- **The body scan** runs on Nyoni's own server, with no third-party AI.
+
+**Account deletion (Apple 5.1.1(v); Google Play).** Covered by 4.8.
+
+**Reporting AI output (Google Play's AI content policy).** Users must be able to report offensive AI output without leaving the app. "Report a problem" on previews sends the report to the Nyoni server, where staff see it in the admin panel.
 
 **Sign in with Apple is not required.** Guideline 4.8 exempts apps that only use the company's own account system, and "Sign in with Nyoni" is exactly that. If Google or Facebook login is ever added, Sign in with Apple must be offered too.
 
