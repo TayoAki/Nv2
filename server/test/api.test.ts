@@ -82,6 +82,16 @@ describe('staff sessions', () => {
   });
 });
 
+describe('reports', () => {
+  it('lists reports for staff only', async () => {
+    assert.equal((await call('/v1/admin/reports')).status, 401);
+    const { token } = await (await signIn()).json();
+    const res = await call('/v1/admin/reports', { token });
+    assert.equal(res.status, 200);
+    assert.ok(Array.isArray(await res.json()));
+  });
+});
+
 describe('inventory', () => {
   let token = '';
   before(async () => {

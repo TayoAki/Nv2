@@ -10,6 +10,7 @@ import { GarmentImage } from '@/components/media/GarmentImage';
 import { AppText } from '@/components/ui/AppText';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { ListRow } from '@/components/ui/ListRow';
 import { Card, Divider } from '@/components/ui/Card';
 import { Chip } from '@/components/ui/Chip';
 import { Banner, StateView } from '@/components/ui/Feedback';
@@ -72,6 +73,12 @@ function AdminProducts() {
           onPress={() => signOut.mutate(undefined, { onSuccess: () => router.replace('/admin/login') })}
         />
       </View>
+      <ListRow
+        icon="flag"
+        title="Preview reports"
+        subtitle="AI previews shoppers reported as wrong or offensive"
+        onPress={() => router.push('/admin/reports')}
+      />
       <View style={styles.intro}>
         <AppText variant="title" accessibilityRole="header">
           Sizes and stock

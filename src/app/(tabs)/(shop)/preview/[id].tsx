@@ -24,6 +24,7 @@ import { useTryOnSession } from '@/state/tryOnSession';
 import { colors, radius, space } from '@/theme';
 
 const REPORT_REASONS = [
+  { value: 'offensive', label: 'It’s offensive or inappropriate' },
   { value: 'identity', label: 'My face, skin tone or body changed' },
   { value: 'garment', label: 'The garment looks wrong (color, pattern, lapels…)' },
   { value: 'incomplete', label: 'Parts of the garment are missing' },
@@ -234,7 +235,13 @@ function PreviewBody({ look }: { look: Look }) {
         onClose={() => setReportOpen(false)}
         onSelect={(reason) => {
           setReportOpen(false);
-          report.mutate({ id: look.id, reason });
+          report.mutate(
+            { id: look.id, reason },
+            {
+              onSuccess: () => showToast('Thanks. The Nyoni team will review this preview.'),
+              onError: (err) => showToast(errorMessage(err), { tone: 'error' }),
+            },
+          );
         }}
       />
     </View>
@@ -256,10 +263,12 @@ function DemoPreview({ look }: { look: Look }) {
       </View>
       <View style={styles.demoCaption}>
         <AppText variant="label" align="center">
-          Demo preview
+          {look.isDemo ? 'Demo preview' : 'Preview image unavailable'}
         </AppText>
         <AppText variant="caption" color={colors.muted} align="center">
-          The generated look for {look.garmentTitle} appears here once a try-on provider is connected.
+          {look.isDemo
+            ? `The generated look for ${look.garmentTitle} appears here once a try-on provider is connected.`
+            : 'This preview’s image couldn’t be loaded. Create a new preview to see it again.'}
         </AppText>
       </View>
     </View>

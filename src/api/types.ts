@@ -222,6 +222,8 @@ export type BagNotice =
 export type BagLine = {
   id: string;
   productId: string;
+  /** The product page on nyonicouture.com, where the order is placed. */
+  storeUrl?: string;
   variantId: string;
   title: string;
   kind: GarmentKind;
@@ -294,7 +296,8 @@ export type WardrobeItem = {
   favorite: boolean;
   /** "Owned" only for confirmed items; "Ordered" until delivery is confirmed (plan section 12). */
   ownership: 'owned' | 'ordered';
-  provenance: 'photo_import' | 'manual' | 'order' | 'demo';
+  /** 'example': a Nyoni piece shown to guests so they can try the stylist; not theirs. */
+  provenance: 'photo_import' | 'manual' | 'order' | 'demo' | 'example';
   /** The Nyoni capsule piece this is, when it came from the store (its photo drives renders). */
   capsuleKey?: string;
   /** Server copy of the item's cut-out, for renders (set by the photo import pipeline). */
@@ -400,6 +403,21 @@ export type StyleProfile = {
   updatedAt: string;
 };
 
+/* ------------------------------------------------------------------------------ Admin reports */
+
+/** A shopper's report about an AI preview, for staff to review (admin panel). */
+export type AdminReport = {
+  id: string;
+  kind: 'preview';
+  reason: string;
+  subject: string | null;
+  status: 'open' | 'reviewed';
+  createdAt: string;
+  reviewedAt: string | null;
+  /** Full URL of the reported image while it's kept for review (7 days). */
+  imageUrl: string | null;
+};
+
 /* ------------------------------------------------------------------------- Body measurements */
 
 export type BodyMeasurementName =
@@ -455,6 +473,8 @@ export type PrivacyOverview = {
   closetPhotoCount: number;
   stylistMessageCount: number;
   hasBodyMeasurements: boolean;
+  /** Permission to send personal data to the third-party AI services (Apple 5.1.2(i)). */
+  aiConsent: boolean;
   reuseTryOnPhoto: boolean;
   accountDeletion: 'none' | 'pending';
 };

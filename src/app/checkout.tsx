@@ -5,8 +5,10 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { errorMessage, isApiError, isNetworkError, type CheckoutHandoff } from '@/api';
+import { demoMode } from '@/api/mode';
 import { BrandLockup } from '@/components/brand/BrandLockup';
 import { Icon } from '@/components/icons/Icon';
+import { AppHeader } from '@/components/layout/AppHeader';
 import { Screen } from '@/components/layout/Screen';
 import { GarmentImage } from '@/components/media/GarmentImage';
 import { AppText } from '@/components/ui/AppText';
@@ -15,9 +17,9 @@ import { Card, Divider } from '@/components/ui/Card';
 import { Banner, StateView } from '@/components/ui/Feedback';
 import { SelectField } from '@/components/ui/SelectField';
 import { TextField } from '@/components/ui/TextField';
-import { useCancelCheckout, useCreateCheckoutHandoff, useSubmitDemoCheckout } from '@/data/shop';
+import { useBag, useCancelCheckout, useCreateCheckoutHandoff, useSubmitDemoCheckout } from '@/data/shop';
 import { formatMoney } from '@/lib/format';
-import { STORE_HOST } from '@/lib/links';
+import { openExternal, STORE_HOST, STORE_URL } from '@/lib/links';
 import { showToast } from '@/state/toast';
 import { colors, gutter, radius, space } from '@/theme';
 
@@ -31,7 +33,12 @@ import { colors, gutter, radius, space } from '@/theme';
  * Demo build: there is no store connection, so this screen stands in for the store-hosted page
  * using the concept layout. Address fields live only in this screen's memory and are discarded.
  */
+/** Beta and store builds finish on the website; demo builds simulate the store's page. */
 export default function CheckoutScreen() {
+  return demoMode ? <DemoCheckout /> : <FinishOnStore />;
+}
+
+function DemoCheckout() {
   const create = useCreateCheckoutHandoff();
   const cancel = useCancelCheckout();
   const [handoff, setHandoff] = useState<CheckoutHandoff | null>(null);
@@ -312,7 +319,87 @@ function Section({
   );
 }
 
+/**
+ * Until the store connection (checkout links) is live, orders are placed on nyonicouture.com.
+ * Nothing is confirmed here: only the store confirms orders.
+ */
+function FinishOnStore() {
+  const bag = useBag();
+  const lines = bag.data?.lines ?? [];
+
+  const close = () => (router.canGoBack() ? router.back() : router.replace('/bag'));
+
+  return (
+    <Screen header={<AppHeader left="close" fallbackHref="/bag" title="Checkout" showBrand={false} />} bottomInset>
+      <View style={styles.store}>
+        <BrandLockup height={40} plate />
+        <AppText variant="title" align="center" accessibilityRole="header">
+          Finish on nyonicouture.com
+        </AppText>
+        <AppText variant="body" color={colors.muted} align="center">
+          Payment happens on the Nyoni Couture website. Open each piece below, choose the same size, and add it to
+          your basket there.
+        </AppText>
+        {bag.isPending ? (
+          <StateView compact kind="loading" />
+        ) : lines.length === 0 ? (
+          <StateView compact kind="empty" icon="bag" title="Your bag is empty" actionLabel="Continue shopping" onAction={() => router.dismissTo('/shop')} />
+        ) : (
+          <Card padded={false}>
+            {lines.map((line, index) => (
+              <View key={line.id}>
+                {index > 0 ? <Divider /> : null}
+                <View style={styles.storeLine}>
+                  <GarmentImage image={line.image} kind={line.kind} colorHex={line.color.hex} contentFit="contain" aspectRatio={0.8} rounded={8} style={styles.storeThumb} />
+                  <View style={styles.storeLineText}>
+                    <AppText variant="heading" numberOfLines={2}>
+                      {line.title}
+                    </AppText>
+                    <AppText variant="secondary" color={colors.muted}>
+                      Size {line.sizeLabel} · Qty {line.quantity} · {formatMoney(line.lineTotal)}
+                    </AppText>
+                    <Button
+                      title="Open on nyonicouture.com"
+                      icon="externalLink"
+                      size="sm"
+                      variant="outline"
+                      fullWidth={false}
+                      accessibilityRole="link"
+                      onPress={() => openExternal(line.storeUrl ?? STORE_URL)}
+                    />
+                  </View>
+                </View>
+              </View>
+            ))}
+          </Card>
+        )}
+        <AppText variant="caption" color={colors.muted} align="center">
+          Your bag stays here until you remove the pieces. Orders placed on the website don’t appear in the app yet.
+        </AppText>
+        <Button title="Back to bag" variant="link" tone="ink" onPress={close} />
+      </View>
+    </Screen>
+  );
+}
+
 const styles = StyleSheet.create({
+  store: {
+    gap: space.md,
+    paddingTop: space.md,
+  },
+  storeLine: {
+    flexDirection: 'row',
+    gap: space.sm,
+    padding: space.sm,
+  },
+  storeThumb: {
+    width: 72,
+  },
+  storeLineText: {
+    flex: 1,
+    gap: space.xxs,
+    alignItems: 'flex-start',
+  },
   browserBar: {
     flexDirection: 'row',
     alignItems: 'center',

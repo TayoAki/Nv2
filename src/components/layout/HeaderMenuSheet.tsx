@@ -12,6 +12,7 @@ import { useSession } from '@/data/account';
 import { confirm } from '@/lib/confirm';
 import { links, openBookFitting, openExternal } from '@/lib/links';
 import { resetToShop } from '@/lib/navigation';
+import { demoMode } from '@/api/mode';
 import { DEMO_SCENARIOS, demoToolsEnabled, useDevSettings } from '@/state/devSettings';
 import { useHeaderMenu } from '@/state/headerMenu';
 import { showToast } from '@/state/toast';
@@ -56,7 +57,7 @@ export function HeaderMenuSheet() {
 
   return (
     <Sheet visible={open} onClose={hide} title="Your account" subtitle={sessionLabel(session)}>
-      <ListRow icon="account" title="Account and sign-in" onPress={() => go('/account')} />
+      <ListRow icon="account" title={demoMode ? 'Account and sign-in' : 'Account'} onPress={() => go('/account')} />
       <ListRow icon="sliders" title="Style preferences" onPress={() => go('/style-profile')} />
       <ListRow icon="shieldCheck" title="Photos and privacy" onPress={() => go('/privacy')} />
       <Divider spacing={space.xs} />
@@ -77,9 +78,25 @@ export function HeaderMenuSheet() {
           openExternal(links.contact);
         }}
       />
+      <ListRow
+        icon="shieldCheck"
+        title="Privacy policy"
+        onPress={() => {
+          hide();
+          openExternal(links.privacyPolicy);
+        }}
+      />
+      <ListRow
+        icon="info"
+        title="Terms and conditions"
+        onPress={() => {
+          hide();
+          openExternal(links.terms);
+        }}
+      />
 
-      {/* Staff tool on the web only; it isn't offered in the iOS and Android apps. */}
-      {Platform.OS === 'web' ? (
+      {/* Staff tool, web only. Staff open /admin directly; shoppers only see it in demo builds. */}
+      {Platform.OS === 'web' && demoToolsEnabled ? (
         <ListRow icon="sliders" title="Store admin" subtitle="Staff sign-in: sizes, stock and prices" onPress={() => go('/admin')} />
       ) : null}
 

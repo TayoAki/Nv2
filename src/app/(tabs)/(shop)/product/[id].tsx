@@ -195,7 +195,7 @@ function ProductDetails({ product }: { product: Product }) {
       </View>
       {product.sizeSource === 'placeholder' ? (
         <AppText variant="caption" color={colors.muted} style={styles.sampleNote}>
-          Sample sizes and stock until the store connection is live.
+          Size availability is confirmed on nyonicouture.com when you order.
         </AppText>
       ) : null}
 

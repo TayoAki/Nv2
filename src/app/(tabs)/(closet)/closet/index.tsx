@@ -14,8 +14,8 @@ import { Banner, Skeleton, StateView } from '@/components/ui/Feedback';
 import { TwoColumnGrid } from '@/components/ui/Grid';
 import { ListRow } from '@/components/ui/ListRow';
 import { Sheet } from '@/components/ui/Sheet';
-import { useSession } from '@/data/account';
-import { useDeleteWardrobeItem, useUpdateWardrobeItem, useWardrobe } from '@/data/closet';
+import { useSession, useEnsureAiConsent } from '@/data/account';
+import { useDeleteWardrobeItem, useSetExampleCloset, useUpdateWardrobeItem, useWardrobe } from '@/data/closet';
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import { confirm } from '@/lib/confirm';
 import { pluralize } from '@/lib/format';
@@ -45,7 +45,6 @@ export default function ClosetScreen() {
   const [filter, setFilter] = useState<Filter>('all');
   const [addOpen, setAddOpen] = useState(false);
   const [actionsFor, setActionsFor] = useState<WardrobeItem | null>(null);
-  const [accountHintDismissed, setAccountHintDismissed] = useState(false);
   const setPending = usePendingImport((state) => state.setPending);
   useRefreshOnFocus(wardrobe.refetch);
 
@@ -60,6 +59,9 @@ export default function ClosetScreen() {
         ? items.filter((item) => item.archived)
         : active.filter((item) => item.category === filter);
   const isDemo = items.some((item) => item.provenance === 'demo');
+  const exampleCount = active.filter((item) => item.provenance === 'example').length;
+  const examples = useSetExampleCloset();
+  const ensureAiConsent = useEnsureAiConsent();
 
   const startImport = async (source: 'library' | 'camera' | 'manual') => {
     setAddOpen(false);
@@ -68,6 +70,8 @@ export default function ClosetScreen() {
       router.push('/closet/import');
       return;
     }
+    // Closet photos are read by an AI service: ask before any photo leaves the phone.
+    if (!(await ensureAiConsent())) return;
     const result = source === 'library' ? await pickFromLibrary({ multiple: true, limit: 12 }) : await takePhoto();
     if (result.status === 'denied') {
       explainDeniedPermission(result.source);
@@ -90,20 +94,21 @@ export default function ClosetScreen() {
       </View>
       {wardrobe.data ? (
         <AppText variant="bodyLarge" color={colors.muted}>
-          {pluralize(active.length, 'piece')}
+          {exampleCount > 0
+            ? `${pluralize(active.length - exampleCount, 'piece')} of yours · ${pluralize(exampleCount, 'example')}`
+            : pluralize(active.length, 'piece')}
           {isDemo ? ' · Demo wardrobe' : ''}
         </AppText>
       ) : null}
 
-      {session.data?.kind === 'guest' && active.length > 0 && !accountHintDismissed ? (
+      {exampleCount > 0 ? (
         <Banner
           tone="info"
-          icon="shieldCheck"
-          title="Keep your closet across devices"
-          message="Sign in so your wardrobe is saved to your account, not just this phone."
-          actionLabel="Sign in"
-          onAction={() => router.push('/account')}
-          onDismiss={() => setAccountHintDismissed(true)}
+          icon="info"
+          title="This is an example closet"
+          message="These Nyoni pieces are examples, so you can try the stylist and try-on straight away. Add your own clothes, or remove the examples."
+          actionLabel={examples.isPending ? 'Removing…' : 'Remove examples'}
+          onAction={() => examples.mutate(false)}
           style={styles.banner}
         />
       ) : null}
@@ -147,8 +152,8 @@ export default function ClosetScreen() {
           message="Add photos of clothes you own. We'll suggest the details and you check them before anything is saved."
           actionLabel="Add clothes"
           onAction={() => setAddOpen(true)}
-          secondaryLabel="Add a piece without a photo"
-          onSecondary={() => startImport('manual')}
+          secondaryLabel={session.data?.kind === 'guest' ? 'Show the example closet' : 'Add a piece without a photo'}
+          onSecondary={() => (session.data?.kind === 'guest' ? examples.mutate(true) : startImport('manual'))}
         />
       ) : (
         <>

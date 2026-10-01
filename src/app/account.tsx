@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { apiMode, errorMessage, isApiError, isNetworkError, type SignInLinkResult, type SignInResult } from '@/api';
 import { COLORS } from '@/api/mock/fixtures';
+import { demoMode } from '@/api/mode';
 import { BrandLockup } from '@/components/brand/BrandLockup';
 import { Icon } from '@/components/icons/Icon';
 import { AppHeader, goBack } from '@/components/layout/AppHeader';
@@ -30,7 +31,12 @@ import { colors, space } from '@/theme';
 type Mode = 'sign_in' | 'recover';
 
 /** 16 · Account and recovery — /account. No tab bar. */
+/** Beta and store builds are guest-only until "Sign in with Nyoni" (the store plugin) is live. */
 export default function AccountScreen() {
+  return demoMode ? <DemoAccountScreen /> : <GuestAccount />;
+}
+
+function DemoAccountScreen() {
   const session = useSession();
   const [migration, setMigration] = useState<SignInResult | null>(null);
 
@@ -181,6 +187,34 @@ function SignInFlow({ onSignedIn }: { onSignedIn: (result: SignInResult) => void
   );
 }
 
+function GuestAccount() {
+  return (
+    <Screen header={<AppHeader left="close" fallbackHref="/shop" showBrand={false} />} bottomInset>
+      <View style={styles.guest}>
+        <Hero />
+        <AppText variant="title" align="center" accessibilityRole="header">
+          You’re using Nyoni as a guest
+        </AppText>
+        <AppText variant="body" color={colors.muted} align="center">
+          Your closet, looks and measurements are saved on this phone. No account is needed to shop, try on, scan or
+          use the stylist.
+        </AppText>
+        <Card style={styles.guestCard}>
+          <View style={styles.guestRow}>
+            <Icon name="account" size={20} color={colors.bronze} />
+            <AppText variant="body" style={styles.flex}>
+              Sign in with your Nyoni account is coming soon. It will add the pieces you’ve bought to your closet and
+              keep everything across your devices.
+            </AppText>
+          </View>
+        </Card>
+        <Button title="Photos and privacy" variant="outline" icon="shieldCheck" onPress={() => router.replace('/privacy')} />
+        <Button title="Continue shopping" variant="link" tone="ink" onPress={() => goBack('/shop')} />
+      </View>
+    </Screen>
+  );
+}
+
 function Hero() {
   return (
     <View style={styles.hero}>
@@ -274,6 +308,21 @@ function SignedIn({ email }: { email: string }) {
 }
 
 const styles = StyleSheet.create({
+  guest: {
+    gap: space.md,
+    paddingTop: space.md,
+  },
+  guestCard: {
+    gap: space.sm,
+  },
+  flex: {
+    flex: 1,
+  },
+  guestRow: {
+    flexDirection: 'row',
+    gap: space.sm,
+    alignItems: 'flex-start',
+  },
   body: {
     gap: space.md,
     paddingTop: space.xs,

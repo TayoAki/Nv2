@@ -6,6 +6,7 @@ import { Platform, StyleSheet, View } from 'react-native';
 
 import { getDb } from '@/api/mock/db';
 import { HeaderMenuSheet } from '@/components/layout/HeaderMenuSheet';
+import { AiConsentSheet } from '@/components/privacy/AiConsentSheet';
 import { ToastHost } from '@/components/layout/ToastHost';
 import { queryClient, wireQueryEnvironment } from '@/data/queryClient';
 import { colors } from '@/theme';
@@ -67,11 +68,13 @@ export default function RootLayout() {
               <Stack.Screen name="admin/login" />
               <Stack.Screen name="admin/index" />
               <Stack.Screen name="admin/[id]" />
+              <Stack.Screen name="admin/reports" />
             </Stack>
             <ToastHost />
           </View>
         </View>
         <HeaderMenuSheet />
+        <AiConsentSheet />
       </ThemeProvider>
     </QueryClientProvider>
   );

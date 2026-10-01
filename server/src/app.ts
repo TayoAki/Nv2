@@ -16,6 +16,7 @@ import { framingOf, normalizeImage } from './images';
 import { createImport, importView } from './ingest';
 import { checkScanPhoto, measureBody } from './measurements';
 import { createRenderBatch, keepRenderBatch, renderBatchView } from './renders';
+import { createReport, listReports, markReviewed } from './reports';
 import { allowStylistMessage, recommend, stylistRequestSchema } from './stylist';
 
 type Env = { Variables: { staff: StaffSession; token: string; device: Device } };
@@ -104,6 +105,9 @@ export function createApp() {
     c.json(await resetInventory(c.req.param('id'), c.get('staff').staffId)),
   );
 
+  admin.get('/reports', async (c) => c.json(await listReports()));
+  admin.put('/reports/:id/reviewed', async (c) => c.json(await markReviewed(c.req.param('id'))));
+
   app.route('/v1/admin', admin);
 
   /* AI: which provider is live, so the app can label simulated results and pick its stylist. */
@@ -127,6 +131,11 @@ export function createApp() {
   const shopper = new Hono<Env>();
   shopper.use(requireDevice);
   shopper.get('/device', (c) => c.json({ credits: c.get('device').credits }));
+  /** "Delete my data": the device and everything stored for it (photos, renders, imports). */
+  shopper.delete('/device', async (c) => {
+    await pool.query('delete from devices where id = $1', [c.get('device').id]);
+    return c.body(null, 204);
+  });
 
   /** Raw image bytes. `?kind=person` for a try-on photo, `?kind=closet` for clothes to import. */
   shopper.post('/uploads', async (c) => {
@@ -146,6 +155,8 @@ export function createApp() {
   shopper.post('/renders', async (c) => c.json(await createRenderBatch(c.get('device').id, await c.req.json().catch(() => null)), 202));
   shopper.get('/renders/:id', async (c) => c.json(await renderBatchView(c.get('device').id, c.req.param('id'))));
   shopper.post('/renders/:id/keep', async (c) => c.json(await keepRenderBatch(c.get('device').id, c.req.param('id'))));
+
+  shopper.post('/reports', async (c) => c.json(await createReport(c.get('device').id, await c.req.json().catch(() => null)), 201));
 
   shopper.post('/imports', async (c) => c.json(await createImport(c.get('device').id, await c.req.json().catch(() => null)), 202));
   shopper.get('/imports/:id', async (c) => c.json(await importView(c.get('device').id, c.req.param('id'))));

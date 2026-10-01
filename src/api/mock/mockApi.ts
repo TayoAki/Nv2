@@ -12,7 +12,9 @@ import {
   getImport,
   getRender,
   keepRender,
+  reportRenderOnServer,
   measureOnServer,
+  deleteDeviceOnServer,
   checkScanPhotoOnServer,
   startImport,
   startRender,
@@ -53,7 +55,8 @@ import type {
 import { applyInventory, buildCapsuleCatalog } from '../catalog/capsule';
 import { fetchCatalog, serverUrl } from '../server';
 import { getDb, persist, persistNow, resetDb, type JobScenario, type MockDb, type StoredJob, type StoredReceipt } from './db';
-import { COLOR_OPTIONS, COLORS } from './fixtures';
+import { buildWardrobe, COLOR_OPTIONS, COLORS } from './fixtures';
+import { demoMode } from '../mode';
 import { recommend, type StylistResult } from './stylistEngine';
 
 /* ------------------------------------------------------------------------------------ helpers */
@@ -84,6 +87,14 @@ const scenario = () => useDevSettings.getState().scenario;
  */
 const serverAi = () => !!serverUrl && scenario() === 'normal';
 
+/**
+ * Nothing personal goes to the third-party AI services without permission (Apple 5.1.2(i)).
+ * The screens ask first; this is the backstop.
+ */
+function requireAiConsent(db: MockDb) {
+  if (!db.aiConsent) throw new ApiError('validation', 'Allow AI features first. You can do this in Photos and privacy.');
+}
+
 /** Deep copy so cached query data never aliases the mutable demo database. */
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -93,7 +104,8 @@ function clone<T>(value: T): T {
 async function request(kind: 'read' | 'write' | 'ai' = 'read'): Promise<MockDb> {
   const current = scenario();
   const base = kind === 'read' ? 250 : kind === 'write' ? 350 : 700;
-  await sleep((current === 'slow' && kind === 'ai' ? base * 3 : base) + Math.random() * 150);
+  // Demo builds simulate a network round trip; beta and store builds answer straight away.
+  if (demoMode) await sleep((current === 'slow' && kind === 'ai' ? base * 3 : base) + Math.random() * 150);
   if (current === 'offline') {
     throw new ApiError('network', "You're offline. Check your connection and try again.");
   }
@@ -477,6 +489,7 @@ function bagView(db: MockDb): Bag {
     const variant = product.variants.find((v) => v.id === stored.variantId) ?? {
       id: stored.variantId,
       productId: product.id,
+      storeUrl: product.storeUrl,
       size: { code: '', label: 'Size no longer offered' },
       color: product.color,
       price: stored.priceSeen,
@@ -642,8 +655,9 @@ async function importOnServer(
   }
   if (uploaded.length === 0) return { drafts: [], failedPhotoCount: unreadable, simulated: false };
 
+  // Examples aren't the shopper's, so they never count as "already in your closet".
   const existing = db.wardrobe
-    .filter((item) => !item.archived)
+    .filter((item) => !item.archived && item.provenance !== 'example')
     .map((item) => ({
       id: item.id,
       text: describeItem(item),
@@ -781,6 +795,7 @@ function privacyView(db: MockDb): PrivacyOverview {
     closetPhotoCount: db.wardrobe.reduce((sum, item) => sum + item.photos.length, 0),
     stylistMessageCount: db.thread.length,
     hasBodyMeasurements: !!db.bodyMeasurements,
+    aiConsent: !!db.aiConsent,
     reuseTryOnPhoto: db.reuseTryOnPhoto,
     accountDeletion: db.accountDeletion,
   });
@@ -931,6 +946,28 @@ export const mockApi: NyoniApi = {
     return clone(next);
   },
 
+  async adminListReports() {
+    const db = await request();
+    requireAdmin(db);
+    return db.looks
+      .filter((look) => look.reported)
+      .map((look) => ({
+        id: look.id,
+        kind: 'preview' as const,
+        reason: 'other',
+        subject: look.garmentTitle,
+        status: 'open' as const,
+        createdAt: look.createdAt,
+        reviewedAt: null,
+        imageUrl: null,
+      }));
+  },
+
+  async adminMarkReportReviewed() {
+    const db = await request('write');
+    requireAdmin(db);
+  },
+
   async resetInventory(productId) {
     const db = await request('write');
     requireAdmin(db);
@@ -1058,6 +1095,7 @@ export const mockApi: NyoniApi = {
     let server: StoredJob['server'];
     let failureCode: TryOnFailureCode | undefined;
     if (serverAi()) {
+      requireAiConsent(db);
       const photo = activePhotos(db).find((p) => p.id === photoId)!;
       try {
         server = batchState(await renderOnServer(photo, serverGarments(db, garment)));
@@ -1151,9 +1189,11 @@ export const mockApi: NyoniApi = {
     persist();
   },
 
-  async reportLook(id) {
+  async reportLook(id, reason) {
     const db = await request('write');
     const look = db.looks.find((l) => l.id === id) ?? notFound('This preview was deleted.');
+    // Server previews are reported to the Nyoni team; only then does the app say thanks.
+    if (look.serverBatchId) await reportRenderOnServer(look.serverBatchId, reason, look.garmentTitle);
     look.reported = true;
     persist();
     return lookView(db, look);
@@ -1318,6 +1358,14 @@ export const mockApi: NyoniApi = {
     return clone([...db.wardrobe].sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
   },
 
+  async setExampleCloset(enabled) {
+    const db = await request('write');
+    db.wardrobe = db.wardrobe.filter((item) => item.provenance !== 'example');
+    if (enabled) db.wardrobe.push(...buildWardrobe(now(), 'example'));
+    persist();
+    return clone([...db.wardrobe].sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+  },
+
   async getWardrobeItem(id) {
     const db = await request();
     return clone(db.wardrobe.find((w) => w.id === id) ?? notFound('This item is no longer in your closet.'));
@@ -1345,6 +1393,9 @@ export const mockApi: NyoniApi = {
 
   async deleteWardrobeItem(id) {
     const db = await request('write');
+    const item = db.wardrobe.find((w) => w.id === id);
+    // Its cut-out on the server goes too, before the app says the photos are removed.
+    if (item?.cutoutBlobId && serverUrl) await deleteServerBlob(item.cutoutBlobId);
     db.wardrobe = db.wardrobe.filter((w) => w.id !== id);
     const affectedOutfitIds = db.outfits
       .filter((o) => o.items.some((ref) => ref.kind === 'owned' && ref.itemId === id))
@@ -1363,6 +1414,7 @@ export const mockApi: NyoniApi = {
 
     if (!options.manual && serverAi()) {
       if (photos.length === 0) throw new ApiError('validation', 'Choose at least one photo.');
+      requireAiConsent(db);
       ({ drafts, failedPhotoCount, simulated } = await importOnServer(db, photos));
     } else if (options.manual) {
       drafts = [
@@ -1456,7 +1508,10 @@ export const mockApi: NyoniApi = {
   async discardImportDraft(importId, draftId) {
     const db = await request('write');
     const imp = findImport(db, importId);
-    findDraft(imp, draftId).status = 'discarded';
+    const draft = findDraft(imp, draftId);
+    // A skipped piece's cut-out isn't needed on the server.
+    if (draft.cutoutBlobId && serverUrl) await deleteServerBlob(draft.cutoutBlobId).catch(() => undefined);
+    draft.status = 'discarded';
     persist();
     return clone(imp);
   },
@@ -1476,6 +1531,7 @@ export const mockApi: NyoniApi = {
     }
     const lastOutfitId = [...db.thread].reverse().find((m) => m.outfitId)?.outfitId;
     const status = serverAi() ? await aiStatus() : null;
+    if (status?.features.stylist) requireAiConsent(db);
     const result = status?.features.stylist
       ? await stylistOnServer(db, { text: trimmed, ownedOnly, focusItemId })
       : recommend({
@@ -1644,6 +1700,21 @@ export const mockApi: NyoniApi = {
   async getPrivacyOverview() {
     const db = await request();
     return privacyView(db);
+  },
+
+  async setAiConsent(granted, version) {
+    const db = await request('write');
+    db.aiConsent = granted ? { version, grantedAt: iso() } : null;
+    persist();
+    return privacyView(db);
+  },
+
+  async deleteAllMyData() {
+    await request('write');
+    // The server copy first: only report success once the Nyoni server has deleted it.
+    if (serverUrl) await deleteDeviceOnServer();
+    await resetDb(demoMode ? 'empty' : 'guest');
+    invalidateCatalog();
   },
 
   async setReuseTryOnPhoto(enabled) {

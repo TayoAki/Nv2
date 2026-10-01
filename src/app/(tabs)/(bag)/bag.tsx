@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
 import { errorMessage, isNetworkError, type BagLine } from '@/api';
+import { demoMode } from '@/api/mode';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { Screen } from '@/components/layout/Screen';
 import { GarmentImage } from '@/components/media/GarmentImage';
@@ -92,7 +93,7 @@ export default function BagScreen() {
           <Divider spacing={space.lg} />
 
           <Button
-            title="Secure checkout"
+            title={demoMode ? 'Secure checkout' : 'Checkout on nyonicouture.com'}
             trailingIcon="arrowRight"
             disabled={data.needsReview || data.itemCount === 0}
             accessibilityHint="Opens Nyoni's secure store checkout"

@@ -119,6 +119,19 @@ async function asDevice<T>(path: string, init: Omit<HttpInit, 'device'> = {}): P
   }
 }
 
+/** Deletes this device on the server, with every photo, render and import stored for it. */
+export async function deleteDeviceOnServer() {
+  const token = await readStored(DEVICE_KEY);
+  if (!token) return;
+  try {
+    await http<void>('/v1/device', { method: 'DELETE', device: token });
+  } catch (error) {
+    // Already gone on the server: nothing left to delete.
+    if (!(error instanceof ApiError && error.code === 'unauthorized')) throw error;
+  }
+  await writeStored(DEVICE_KEY, null);
+}
+
 export async function deviceCredits(): Promise<number> {
   return (await asDevice<{ credits: number }>('/v1/device')).credits;
 }
@@ -140,6 +153,10 @@ export async function uploadImage(localUri: string, kind: 'person' | 'closet') {
 
 /** Removes a photo from the server as soon as the shopper deletes it. */
 export const deleteServerBlob = (blobId: string) => asDevice<void>(`/v1/blobs/${encodeURIComponent(blobId)}`, { method: 'DELETE' });
+
+/** A shopper's report about a preview; the server keeps the image 7 days for staff review. */
+export const reportRenderOnServer = (renderBatchId: string, reason: string, subject: string) =>
+  asDevice<{ id: string }>('/v1/reports', { method: 'POST', body: { kind: 'preview', reason, renderBatchId, subject } });
 
 export const startRender = (body: {
   personBlobId: string;

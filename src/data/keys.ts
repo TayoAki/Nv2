@@ -5,6 +5,7 @@ export const keys = {
   product: (id: string) => ['product', id] as const,
   adminProducts: ['admin', 'products'] as const,
   adminSession: ['admin', 'session'] as const,
+  adminReports: ['admin', 'reports'] as const,
   bag: ['bag'] as const,
   tryOnRoot: ['try-on'] as const,
   tryOn: (id: string) => ['try-on', 'job', id] as const,

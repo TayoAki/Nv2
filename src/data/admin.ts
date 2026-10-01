@@ -29,6 +29,18 @@ export function useAdminSignOut() {
   });
 }
 
+export function useAdminReports() {
+  return useQuery({ queryKey: keys.adminReports, queryFn: () => api.adminListReports() });
+}
+
+export function useMarkReportReviewed() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.adminMarkReportReviewed(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.adminReports }),
+  });
+}
+
 export function useAdminProducts() {
   return useQuery({ queryKey: keys.adminProducts, queryFn: () => api.adminListProducts() });
 }

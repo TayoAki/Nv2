@@ -368,6 +368,27 @@ describe('render requests to OpenRouter', () => {
     env.dailyImageLimit = daily;
   });
 
+  it('takes reports about previews and keeps the image for review', async () => {
+    const device = await newDevice();
+    const person = await upload(device, 'person', await photo(600, 1200));
+    const created = await render(device, { personBlobId: person.blobId, garments: [BOOTS] });
+    await drain();
+    const res = await call('/v1/reports', { method: 'POST', device, json: { kind: 'preview', reason: 'offensive', renderBatchId: created.body.id, subject: 'Antwerp boots' } });
+    assert.equal(res.status, 201);
+    const { rows } = await pool.query("select r.blob_id, b.expires_at from reports r join blobs b on b.id = r.blob_id order by r.id desc limit 1");
+    assert.ok(rows[0].expires_at.getTime() - Date.now() > 6 * 24 * 3600 * 1000, 'kept about 7 days');
+    assert.equal((await call('/v1/reports', { method: 'POST', device, json: { kind: 'preview', reason: 'nope' } })).status, 400);
+  });
+
+  it('deletes a device and everything stored for it', async () => {
+    const device = await newDevice();
+    await upload(device, 'person', await photo(600, 1200));
+    const { rows: before } = await pool.query('select count(*)::int as n from blobs b join devices d on d.id = b.device_id where d.credits >= 0');
+    assert.ok(before[0].n > 0);
+    assert.equal((await call('/v1/device', { method: 'DELETE', device })).status, 204);
+    assert.equal((await call('/v1/device', { device })).status, 401);
+  });
+
   it('rejects unknown catalog pieces and unregistered devices', async () => {
     const device = await newDevice();
     const person = await upload(device, 'person', await photo(600, 1200));

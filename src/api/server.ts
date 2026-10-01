@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { withBundledImages } from './catalog/capsule';
 import type { NyoniApi } from './client';
 import { ApiError, type ApiErrorCode } from './errors';
-import type { AdminSession, Product } from './types';
+import type { AdminReport, AdminSession, Product } from './types';
 
 /**
  * The Nyoni server (server/, deployed on Railway). Set EXPO_PUBLIC_API_URL to use it; without
@@ -97,7 +97,14 @@ export async function fetchCatalog(): Promise<Product[]> {
 
 type AdminApi = Pick<
   NyoniApi,
-  'getAdminSession' | 'adminSignIn' | 'adminSignOut' | 'adminListProducts' | 'updateInventory' | 'resetInventory'
+  | 'getAdminSession'
+  | 'adminSignIn'
+  | 'adminSignOut'
+  | 'adminListProducts'
+  | 'updateInventory'
+  | 'resetInventory'
+  | 'adminListReports'
+  | 'adminMarkReportReviewed'
 >;
 
 export function createServerAdminApi(onCatalogChanged: () => void): AdminApi {
@@ -144,6 +151,13 @@ export function createServerAdminApi(onCatalogChanged: () => void): AdminApi {
       });
       onCatalogChanged();
       return withBundledImages(product);
+    },
+    async adminListReports() {
+      const reports = await http<AdminReport[]>('/v1/admin/reports', { auth: true });
+      return reports.map((report) => ({ ...report, imageUrl: report.imageUrl ? `${serverUrl}${report.imageUrl}` : null }));
+    },
+    async adminMarkReportReviewed(id) {
+      await http<void>(`/v1/admin/reports/${encodeURIComponent(id)}/reviewed`, { method: 'PUT', auth: true });
     },
     async resetInventory(productId) {
       const product = await http<Product>(`/v1/admin/products/${encodeURIComponent(productId)}/inventory`, {

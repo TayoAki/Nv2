@@ -12,6 +12,7 @@ import { Chip } from '@/components/ui/Chip';
 import { Banner, StateView } from '@/components/ui/Feedback';
 import { IconButton } from '@/components/ui/IconButton';
 import { GoldSwitch } from '@/components/ui/Toggle';
+import { useEnsureAiConsent } from '@/data/account';
 import { useSendStylistMessage, useStylistThread } from '@/data/stylist';
 import { track } from '@/lib/analytics';
 import { timeLabel } from '@/lib/format';
@@ -28,15 +29,21 @@ export default function StylistScreen() {
   const params = useLocalSearchParams<{ prompt?: string; focusItemId?: string }>();
   const thread = useStylistThread();
   const send = useSendStylistMessage();
+  const ensureAiConsent = useEnsureAiConsent();
   const [text, setText] = useState('');
   const [ownedOnly, setOwnedOnly] = useState(true);
   const [failed, setFailed] = useState<{ text: string; message: string; focusItemId?: string } | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const handledPrompt = useRef<string | null>(null);
 
-  const submit = (message: string, focusItemId?: string) => {
+  const submit = async (message: string, focusItemId?: string) => {
     const trimmed = message.trim();
     if (!trimmed || send.isPending) return;
+    // The stylist is an AI service: ask before the first message leaves the phone.
+    if (!(await ensureAiConsent())) {
+      setText(trimmed);
+      return;
+    }
     setFailed(null);
     setText('');
     track('stylist_request', { ownedOnly, focused: !!focusItemId });
@@ -48,7 +55,7 @@ export default function StylistScreen() {
 
   // "Style this piece" from the closet arrives with a prompt; send it once.
   const sendIncomingPrompt = useEffectEvent((prompt: string, focusItemId?: string) => {
-    submit(prompt, focusItemId);
+    void submit(prompt, focusItemId);
     router.setParams({ prompt: undefined, focusItemId: undefined });
   });
   const threadReady = !!thread.data;

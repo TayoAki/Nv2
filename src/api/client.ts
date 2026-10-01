@@ -11,6 +11,7 @@ import type {
   OrderReceipt,
   PersonPhoto,
   PrivacyOverview,
+  AdminReport,
   AdminSession,
   InventoryUpdate,
   Product,
@@ -91,6 +92,9 @@ export interface NyoniApi {
   updateInventory(productId: string, update: InventoryUpdate): Promise<Product>;
   /** Drops admin edits and returns to the store export's sizes, stock and price. */
   resetInventory(productId: string): Promise<Product>;
+  /** Shopper reports about AI previews, newest open ones first. */
+  adminListReports(): Promise<AdminReport[]>;
+  adminMarkReportReviewed(id: string): Promise<void>;
 
   /* Photos: POST /photos/upload-intent + POST /photos/:id/complete; DELETE /photos/:id */
   uploadPhoto(photo: LocalPhoto, consentVersion: string): Promise<PersonPhoto>;
@@ -137,6 +141,8 @@ export interface NyoniApi {
 
   /* Wardrobe: /wardrobe/imports, /wardrobe/items/:id */
   listWardrobe(): Promise<WardrobeItem[]>;
+  /** Guests: show or remove the example closet (Nyoni pieces to try the stylist with). */
+  setExampleCloset(enabled: boolean): Promise<WardrobeItem[]>;
   getWardrobeItem(id: string): Promise<WardrobeItem>;
   updateWardrobeItem(id: string, patch: WardrobeItemPatch): Promise<WardrobeItem>;
   deleteWardrobeItem(id: string): Promise<{ affectedOutfitIds: string[] }>;
@@ -172,6 +178,10 @@ export interface NyoniApi {
 
   /* Privacy */
   getPrivacyOverview(): Promise<PrivacyOverview>;
+  /** Grant or withdraw permission to use the third-party AI services. */
+  setAiConsent(granted: boolean, version: string): Promise<PrivacyOverview>;
+  /** Guests: erase everything on this device and on the Nyoni server, then start fresh. */
+  deleteAllMyData(): Promise<void>;
   setReuseTryOnPhoto(enabled: boolean): Promise<PrivacyOverview>;
   deleteAllPhotos(): Promise<{ providerCleanup: 'done' | 'retrying' }>;
   requestAccountDeletion(): Promise<PrivacyOverview>;

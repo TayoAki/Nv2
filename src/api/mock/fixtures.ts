@@ -99,7 +99,7 @@ export const wardrobeId = (productId: string) => `w-${productId.replace(/^p-/, '
 
 const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
-export function buildWardrobe(now: number): WardrobeItem[] {
+export function buildWardrobe(now: number, provenance: 'demo' | 'example' = 'demo'): WardrobeItem[] {
   const catalog = buildCapsuleCatalog();
   return CLOSET_PRODUCTS.map((productId, index) => {
     const product = catalog.find((p) => p.id === productId);
@@ -119,7 +119,7 @@ export function buildWardrobe(now: number): WardrobeItem[] {
       archived: false,
       favorite: false,
       ownership: 'owned',
-      provenance: 'demo',
+      provenance,
       capsuleKey: piece.key,
       image: product.images[0],
       photos: product.images,

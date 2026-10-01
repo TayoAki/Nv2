@@ -114,6 +114,22 @@ const MIGRATIONS: string[] = [
   create index renders_created on renders (created_at);
   create index imports_device_created on imports (device_id, created_at);
   `,
+  // 4: shopper reports about AI output (Google Play requires in-app reporting).
+  `
+  create table reports (
+    id bigserial primary key,
+    device_id uuid references devices (id) on delete set null,
+    kind text not null,
+    reason text not null,
+    render_batch_id text,
+    blob_id text,
+    subject text,
+    status text not null default 'open',
+    created_at timestamptz not null default now(),
+    reviewed_at timestamptz
+  );
+  create index reports_status_created on reports (status, created_at desc);
+  `,
 ];
 
 export async function migrate() {

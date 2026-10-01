@@ -13,6 +13,7 @@ import { AppText } from '@/components/ui/AppText';
 import { Button } from '@/components/ui/Button';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { Banner, StateView } from '@/components/ui/Feedback';
+import { useEnsureAiConsent } from '@/data/account';
 import { useWardrobeItem } from '@/data/closet';
 import { useProduct } from '@/data/shop';
 import { useOutfit } from '@/data/stylist';
@@ -39,6 +40,7 @@ export default function PhotoScreen() {
   const photos = usePhotos();
   const credits = usePreviewCredits();
   const startTryOn = useStartTryOn();
+  const ensureAiConsent = useEnsureAiConsent();
   const setActiveJob = useTryOnSession((state) => state.setActiveJob);
 
   const [selection, setSelection] = useState<Selection>(null);
@@ -84,8 +86,10 @@ export default function PhotoScreen() {
     setIdempotencyKey(Crypto.randomUUID());
   };
 
-  const create = () => {
+  const create = async () => {
     if (!garment || !selection || !consent) return;
+    // Try-on images are made by an AI service: ask before the photo leaves the phone.
+    if (!(await ensureAiConsent())) return;
     setSubmitError(null);
     startTryOn.mutate(
       {
