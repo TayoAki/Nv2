@@ -469,10 +469,14 @@ Reviewers must be able to sign in. On the **live** store, create a customer acco
 
 **Tests:** 19 server tests use fixtures shaped like the plugin's events. A browser test against a local stand-in store covers sign-in, purchases in the closet, a paid checkout and account deletion.
 
+### The plugin is in this repo
+
+The plugin is in [`wordpress/`](../wordpress/README.md): the install zip and its source. `wordpress/test/plugin-contract.php` runs the plugin's own signing, login-token and checkout code against the app server. All checks passed.
+
 ### Differences from the plan
 
 1. **No account-deletion page in the plugin** (plan 4.8). The app's "Delete my account" deletes everything the app server holds straight away. The store account is then listed under **Store admin → Store link → Accounts to erase on the store**, and staff erase it in WordPress (Tools → Erase Personal Data) and mark it done. Apple accepts this, but it depends on staff. Adding 4.8 to the plugin would make it automatic, and the server already handles `account.deleted`.
-2. **Checkout links:** the server uses WooCommerce's `/checkout-link/?products=` by default. If staging shows that variation IDs don't work there, set `WOO_CHECKOUT_MODE=signed` in Railway to use the plugin's `/nyoni-checkout/` fallback. Its signature is `base64url(HMAC-SHA256(secret, "items=…&nyoni_app=…"))`; **IT to confirm this matches the plugin's README.**
+2. **Checkout links:** the server uses WooCommerce's `/checkout-link/?products=` by default. If staging shows that variation IDs don't work there, set `WOO_CHECKOUT_MODE=signed` in Railway to use the plugin's `/nyoni-checkout/` fallback. Its signature is `base64url(HMAC-SHA256(secret, "items=…&nyoni_app=…"))` with no padding. This is confirmed against the plugin's README and its `verify_link`.
 3. **Login token issuer:** the server expects `iss` to equal `STORE_URL` (default `https://nyonicouture.com`, no trailing slash). For staging, set `STORE_URL` to the staging home URL.
 
 ### What IT does next

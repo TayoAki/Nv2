@@ -23,13 +23,20 @@ export function useMember() {
   });
 }
 
+/** After a sign-in, the store sends orders and Club status in the background, so look again shortly. */
+const FOLLOW_UPS_MS = [10_000, 30_000, 90_000];
+
 function useRefreshMember() {
   const queryClient = useQueryClient();
-  return () =>
+  const refresh = () =>
     Promise.all([
       queryClient.invalidateQueries({ queryKey: keys.member }),
       queryClient.invalidateQueries({ queryKey: keys.wardrobeRoot }),
     ]);
+  return () => {
+    for (const delay of FOLLOW_UPS_MS) setTimeout(() => void refresh(), delay);
+    return refresh();
+  };
 }
 
 export function useSignInWithNyoni() {

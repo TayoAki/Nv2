@@ -19,6 +19,9 @@ export function sizeOf(variation: StoreVariation): string | null {
   return size?.[1] ?? null;
 }
 
+/** Sold in sizes: "variable", or a plugin type like "variable-subscription". */
+export const hasVariations = (product: StoreProduct) => product.type.startsWith('variable') || product.variations.length > 0;
+
 export function variationForSize(product: StoreProduct, label: string) {
   const wanted = normalizeSize(label);
   return product.variations.find((v) => {
@@ -36,7 +39,7 @@ const cents = (price: string) => Math.round(Number(price) * 100);
 export function withStoreData(product: Product, store: StoreProduct): Product {
   const live = store.status === 'publish';
   const sizes =
-    store.type === 'variable'
+    hasVariations(store)
       ? store.variations
           .map((v) => ({ label: sizeOf(v), stockCount: live ? units(v.stockStatus, v.stockQuantity) : 0 }))
           .filter((size): size is { label: string; stockCount: number } => !!size.label)

@@ -8,7 +8,7 @@ import { pool } from './db';
 import { env } from './env';
 import { HttpError } from './errors';
 import { eraseCustomer, permalinkPath, storeProductsById, storeProductsByPath, type StoreOrder } from './woo/data';
-import { sizeOf, variationForSize } from './woo/catalog';
+import { hasVariations, sizeOf, variationForSize } from './woo/catalog';
 import { signCheckout, verifyLoginToken } from './woo/signing';
 
 /**
@@ -180,7 +180,7 @@ export async function createCheckout(deviceId: string, input: unknown) {
   const items = resolved.map(({ line, product, variant }) => {
     const match = product.storeUrl ? store.get(permalinkPath(product.storeUrl)) : undefined;
     if (!match) throw new HttpError('unavailable', 'Checkout in the app isn’t connected to the store yet. Finish on nyonicouture.com.');
-    const storeId = match.type === 'variable' ? variationForSize(match, variant.size.label)?.id : match.id;
+    const storeId = hasVariations(match) ? variationForSize(match, variant.size.label)?.id : match.id;
     if (!storeId) throw new HttpError('conflict', `${product.title} in ${variant.size.label} isn’t sold on the store right now.`);
     return { id: storeId, quantity: line.quantity, line, priceMinor: variant.price.amountMinor };
   });
