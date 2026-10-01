@@ -15,11 +15,13 @@ import { errorBody, HttpError } from './errors';
 import { framingOf, normalizeImage } from './images';
 import { createImport, importView } from './ingest';
 import { checkScanPhoto, measureBody } from './measurements';
+import { checkoutStatus, createCheckout, deleteMember, memberView, requireMember, signInWithStore, signOutMember, type Member } from './members';
 import { createRenderBatch, keepRenderBatch, renderBatchView } from './renders';
 import { createReport, listReports, markReviewed } from './reports';
 import { allowStylistMessage, recommend, stylistRequestSchema } from './stylist';
+import { storeRoutes } from './woo/routes';
 
-type Env = { Variables: { staff: StaffSession; token: string; device: Device } };
+type Env = { Variables: { staff: StaffSession; token: string; device: Device; member: Member } };
 
 const bearer = (c: Context) => c.req.header('authorization')?.match(/^Bearer (.+)$/)?.[1] ?? null;
 
@@ -45,7 +47,8 @@ export function createApp() {
   app.use('/v1/*', (c, next) =>
     bodyLimit({
       // Photos up to 12 MB each (two for measurements); every other request is small JSON.
-      maxSize: c.req.path === '/v1/uploads' ? 12 * 1024 * 1024 : c.req.path === '/v1/measurements' ? 25 * 1024 * 1024 : c.req.path === '/v1/measurements/check' ? 13 * 1024 * 1024 : 256 * 1024,
+      // Store events carry catalogue batches of 50 products with their variations.
+      maxSize: c.req.path === '/v1/uploads' ? 12 * 1024 * 1024 : c.req.path === '/v1/measurements' ? 25 * 1024 * 1024 : c.req.path === '/v1/measurements/check' ? 13 * 1024 * 1024 : c.req.path.startsWith('/v1/woo/') ? 8 * 1024 * 1024 : 256 * 1024,
       onError: (ctx) => ctx.json(errorBody('validation', 'That photo is too large. Use one under 12 MB.'), 413),
     })(c, next),
   );
@@ -106,6 +109,31 @@ export function createApp() {
   );
 
   admin.get('/reports', async (c) => c.json(await listReports()));
+
+  /** The store link at a glance: what has arrived, and accounts waiting to be erased on the store. */
+  admin.get('/store', async (c) => {
+    const counts = await pool.query<{ products: string; variations: string; orders: string; members: string }>(
+      `select (select count(*) from woo_products) as products,
+              (select coalesce(sum(jsonb_array_length(data->'variations')), 0) from woo_products) as variations,
+              (select count(*) from woo_orders) as orders,
+              (select count(*) from members) as members`,
+    );
+    const events = await pool.query<{ type: string; received_at: Date }>('select type, received_at from woo_events order by received_at desc limit 20');
+    const deletions = await pool.query<{ id: string; woo_customer_id: string; requested_at: Date }>(
+      "select id, woo_customer_id, requested_at from account_deletions where completed_at is null order by requested_at",
+    );
+    const row = counts.rows[0];
+    return c.json({
+      configured: { bridge: !!env.bridgeSecret, webhooks: !!env.wooWebhookSecret, checkoutMode: env.checkoutMode },
+      counts: { products: Number(row.products), variations: Number(row.variations), orders: Number(row.orders), members: Number(row.members) },
+      recentEvents: events.rows.map((e) => ({ type: e.type, receivedAt: e.received_at.toISOString() })),
+      pendingDeletions: deletions.rows.map((d) => ({ id: d.id, customerId: Number(d.woo_customer_id), requestedAt: d.requested_at.toISOString() })),
+    });
+  });
+  admin.put('/account-deletions/:id/done', async (c) => {
+    await pool.query('update account_deletions set completed_at = now() where id = $1 and completed_at is null', [c.req.param('id')]);
+    return c.body(null, 204);
+  });
   admin.put('/reports/:id/reviewed', async (c) => c.json(await markReviewed(c.req.param('id'))));
 
   app.route('/v1/admin', admin);
@@ -115,6 +143,24 @@ export function createApp() {
     const provider = aiProvider();
     return c.json({ provider: provider.name, features: { renders: true, imports: true, stylist: !!provider.chat, measurements: !!(env.measureUrl && env.measureToken) } });
   });
+
+  /* The store link: signed events from the plugin and WooCommerce. */
+  app.route('/v1/woo', storeRoutes());
+
+  /* Members (signed in with their nyonicouture.com account) */
+  const members = new Hono<Env>();
+  members.use(requireMember);
+  members.get('/', async (c) => c.json(await memberView(c.get('member').id)));
+  members.delete('/session', async (c) => {
+    await signOutMember(c.get('token'));
+    return c.body(null, 204);
+  });
+  /** "Delete my account": the app server's copy at once; the store account is queued for staff. */
+  members.delete('/', async (c) => {
+    await deleteMember(c.get('member'));
+    return c.body(null, 204);
+  });
+  app.route('/v1/me', members);
 
   /* Shopper devices */
   app.post('/v1/devices', async (c) => c.json(await createDevice(clientKey(c)), 201));
@@ -155,6 +201,19 @@ export function createApp() {
   shopper.post('/renders', async (c) => c.json(await createRenderBatch(c.get('device').id, await c.req.json().catch(() => null)), 202));
   shopper.get('/renders/:id', async (c) => c.json(await renderBatchView(c.get('device').id, c.req.param('id'))));
   shopper.post('/renders/:id/keep', async (c) => c.json(await keepRenderBatch(c.get('device').id, c.req.param('id'))));
+
+  /** Exchanges the store's login token for a member session, linking this device. */
+  shopper.post('/auth/nyoni', async (c) => {
+    c.header('Cache-Control', 'no-store');
+    return c.json(await signInWithStore(await c.req.json().catch(() => null), c.get('device').id), 201);
+  });
+
+  /** Checks the bag against the live catalog and returns the store's checkout link. */
+  shopper.post('/checkout', async (c) => c.json(await createCheckout(c.get('device').id, await c.req.json().catch(() => null)), 201));
+  shopper.get('/checkout/:ref', async (c) => {
+    c.header('Cache-Control', 'no-store');
+    return c.json(await checkoutStatus(c.get('device').id, c.req.param('ref')));
+  });
 
   shopper.post('/reports', async (c) => c.json(await createReport(c.get('device').id, await c.req.json().catch(() => null)), 201));
 

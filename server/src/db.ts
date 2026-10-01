@@ -130,6 +130,76 @@ const MIGRATIONS: string[] = [
   );
   create index reports_status_created on reports (status, created_at desc);
   `,
+  // 5: the store link (Nyoni App Bridge plugin and WooCommerce webhooks), members and checkouts.
+  `
+  create table woo_products (
+    id bigint primary key,
+    permalink_path text,
+    data jsonb not null,
+    modified_at timestamptz,
+    updated_at timestamptz not null default now()
+  );
+  create index woo_products_permalink on woo_products (permalink_path);
+  create table woo_orders (
+    id bigint primary key,
+    customer_id bigint,
+    app_ref text,
+    status text not null,
+    data jsonb not null,
+    modified_at timestamptz,
+    updated_at timestamptz not null default now()
+  );
+  create index woo_orders_customer on woo_orders (customer_id);
+  create index woo_orders_app_ref on woo_orders (app_ref);
+  create table woo_events (
+    event_id text primary key,
+    type text not null,
+    received_at timestamptz not null default now()
+  );
+  create index woo_events_received on woo_events (received_at desc);
+  create table members (
+    id uuid primary key default gen_random_uuid(),
+    woo_customer_id bigint not null unique,
+    email text,
+    first_name text,
+    last_name text,
+    created_at timestamptz not null default now(),
+    last_sign_in_at timestamptz
+  );
+  create table member_sessions (
+    token_hash text primary key,
+    member_id uuid not null references members (id) on delete cascade,
+    expires_at timestamptz not null,
+    created_at timestamptz not null default now()
+  );
+  create table used_login_tokens (
+    jti text primary key,
+    expires_at timestamptz not null
+  );
+  create table memberships (
+    woo_customer_id bigint primary key,
+    status text not null,
+    started_at timestamptz,
+    expires_at timestamptz,
+    order_id bigint,
+    subscription_id bigint,
+    updated_at timestamptz not null default now()
+  );
+  create table checkouts (
+    ref text primary key,
+    device_id uuid references devices (id) on delete set null,
+    lines jsonb not null,
+    created_at timestamptz not null default now()
+  );
+  create table account_deletions (
+    id bigserial primary key,
+    woo_customer_id bigint not null,
+    source text not null,
+    requested_at timestamptz not null default now(),
+    completed_at timestamptz
+  );
+  alter table devices add column member_id uuid references members (id) on delete set null;
+  `,
 ];
 
 export async function migrate() {

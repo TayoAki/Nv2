@@ -47,6 +47,18 @@ export const env = {
   collectionDir: process.env.COLLECTION_DIR || new URL('../../assets/collection/', import.meta.url).pathname,
   /** Public web app URL, sent to OpenRouter as the referring app. */
   appUrl: process.env.APP_URL || 'https://web-production-98e6c5.up.railway.app',
+  /*
+   * The store link. The bridge secret is the plugin's 64-character hex secret, used as text (not
+   * hex-decoded) for bridge events, login tokens and signed checkout links. The webhook secret is
+   * the one typed into WooCommerce's webhooks. Without them those routes answer 503.
+   */
+  bridgeSecret: process.env.NYONI_BRIDGE_SECRET || null,
+  wooWebhookSecret: process.env.WOO_WEBHOOK_SECRET || null,
+  /** The store's home URL: the login token's issuer and where checkout links point. */
+  storeUrl: (process.env.STORE_URL || 'https://nyonicouture.com').replace(/\/+$/, ''),
+  /** `link`: WooCommerce's built-in checkout links. `signed`: the plugin's /nyoni-checkout/ fallback. */
+  checkoutMode: process.env.WOO_CHECKOUT_MODE === 'signed' ? ('signed' as const) : ('link' as const),
+  memberSessionDays: Number(process.env.MEMBER_SESSION_DAYS ?? 90),
   /** Railway's internal Postgres URL has no TLS; public proxies do. */
   databaseSsl: process.env.DATABASE_SSL === 'true',
 };

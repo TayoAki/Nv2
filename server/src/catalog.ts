@@ -10,6 +10,7 @@ import {
 import type { Product } from '../../src/api/types';
 import { pool } from './db';
 import { HttpError } from './errors';
+import { applyStoreData } from './woo/catalog';
 
 const rows = JSON.parse(
   readFileSync(new URL('../../shared/catalog/nyoni-capsule.json', import.meta.url), 'utf8'),
@@ -41,9 +42,12 @@ async function overrides(): Promise<Record<string, InventoryOverride>> {
   );
 }
 
-/** The live catalog: the capsule export with staff edits applied. Images come from the app bundle. */
+/**
+ * The live catalog: the capsule export with staff edits applied, then the store's own sizes,
+ * stock and prices wherever the store link has sent them. Images come from the app bundle.
+ */
 export async function currentCatalog(): Promise<Product[]> {
-  return buildCapsuleCatalog(rows, { inventory: await overrides() });
+  return applyStoreData(buildCapsuleCatalog(rows, { inventory: await overrides() }));
 }
 
 export async function currentProduct(productId: string): Promise<Product> {
