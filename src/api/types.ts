@@ -418,6 +418,15 @@ export type AdminReport = {
   imageUrl: string | null;
 };
 
+/** The store link at a glance (staff): what the store has sent, and accounts to erase there. */
+export type AdminStoreLink = {
+  configured: { bridge: boolean; webhooks: boolean; checkoutMode: 'link' | 'signed' };
+  counts: { products: number; variations: number; orders: number; members: number };
+  recentEvents: { type: string; receivedAt: string }[];
+  /** "Delete my account" requests from the app; staff erase the nyonicouture.com account. */
+  pendingDeletions: { id: string; customerId: number; requestedAt: string }[];
+};
+
 /* ------------------------------------------------------------------------- Body measurements */
 
 export type BodyMeasurementName =

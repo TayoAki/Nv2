@@ -50,6 +50,18 @@ Nothing is used for tracking, and nothing is linked to the shopper's identity: t
 - **Body measurements:** the scan photos are processed in real time and deleted at once, and the measurements are kept on the phone only. Under Apple's definition this is not collected. If measurements are later saved to the server, add **Health & Fitness → Fitness**.
 - **Purchases:** made on nyonicouture.com, not in the app.
 
+### When "Sign in with Nyoni" is switched on
+
+Signing in turns on by itself once the store plugin is connected. **Update the App Privacy answers before that happens**: add these as Linked to identity, for App Functionality, and not used for tracking.
+
+- Contact info: Name, Email address.
+- Identifiers: User ID (the store customer ID).
+- Purchases: Purchase history (orders from nyonicouture.com, shown in the closet).
+
+In Google Play's Data safety form, add the same: Name, Email address, User IDs and Purchase history, collected for App functionality and Account management.
+
+**Account deletion:** Account → Delete my account. Add the reviewer test account (plugin plan 4.9) to the App Review notes.
+
 ## Google Play: Data safety
 
 - **Is data encrypted in transit?** Yes.

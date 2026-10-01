@@ -92,6 +92,10 @@ after(async () => {
 });
 
 describe('bridge events', () => {
+  it('tells the app sign-in is on and checkout waits for the catalogue', async () => {
+    assert.deepEqual(await (await app.request('/v1/store/status')).json(), { signIn: true, checkout: false, storeUrl: 'https://nyonicouture.com' });
+  });
+
   it('answers Test connection', async () => {
     const res = await bridge('ping', { site: 'https://nyonicouture.com', wc: '11.1.2', plugin: '1.0.1' });
     assert.equal(res.status, 200);
@@ -122,6 +126,7 @@ describe('bridge events', () => {
   it('takes the catalogue and shows store stock and prices in the app catalog', async () => {
     const res = await bridge('catalog.batch', { batch: 1, of: 1, products: [NATHAN] });
     assert.equal((await res.json()).saved, 1);
+    assert.equal((await (await app.request('/v1/store/status')).json()).checkout, true);
     const catalog = await (await app.request('/v1/catalog')).json();
     const nathan = catalog.find((p: { id: string }) => p.id === 'p-nathan');
     assert.equal(nathan.sizeSource, 'store');

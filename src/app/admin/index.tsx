@@ -79,6 +79,12 @@ function AdminProducts() {
         subtitle="AI previews shoppers reported as wrong or offensive"
         onPress={() => router.push('/admin/reports')}
       />
+      <ListRow
+        icon="package"
+        title="Store link"
+        subtitle="What nyonicouture.com has sent, and accounts to erase there"
+        onPress={() => router.push('/admin/store')}
+      />
       <View style={styles.intro}>
         <AppText variant="title" accessibilityRole="header">
           Sizes and stock

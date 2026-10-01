@@ -9,6 +9,7 @@ import { Divider } from '@/components/ui/Card';
 import { ListRow } from '@/components/ui/ListRow';
 import { Sheet } from '@/components/ui/Sheet';
 import { useSession } from '@/data/account';
+import { useMember } from '@/data/member';
 import { confirm } from '@/lib/confirm';
 import { links, openBookFitting, openExternal } from '@/lib/links';
 import { resetToShop } from '@/lib/navigation';
@@ -23,6 +24,7 @@ export function HeaderMenuSheet() {
   const open = useHeaderMenu((state) => state.open);
   const hide = useHeaderMenu((state) => state.hide);
   const { data: session } = useSession();
+  const { data: member } = useMember();
   const queryClient = useQueryClient();
   const navigationRef = useNavigationContainerRef();
   const scenario = useDevSettings((state) => state.scenario);
@@ -56,7 +58,7 @@ export function HeaderMenuSheet() {
   };
 
   return (
-    <Sheet visible={open} onClose={hide} title="Your account" subtitle={sessionLabel(session)}>
+    <Sheet visible={open} onClose={hide} title="Your account" subtitle={demoMode ? sessionLabel(session) : memberLabel(member)}>
       <ListRow icon="account" title={demoMode ? 'Account and sign-in' : 'Account'} onPress={() => go('/account')} />
       <ListRow icon="sliders" title="Style preferences" onPress={() => go('/style-profile')} />
       <ListRow icon="shieldCheck" title="Photos and privacy" onPress={() => go('/privacy')} />
@@ -159,6 +161,12 @@ export function HeaderMenuSheet() {
       ) : null}
     </Sheet>
   );
+}
+
+function memberLabel(member: ReturnType<typeof useMember>['data']) {
+  if (member === undefined) return undefined;
+  if (!member) return 'Browsing as a guest';
+  return `Signed in as ${member.member.firstName ?? member.member.email ?? 'a Nyoni member'}`;
 }
 
 function sessionLabel(session: ReturnType<typeof useSession>['data']) {

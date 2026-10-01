@@ -251,3 +251,33 @@ export async function checkScanPhotoOnServer(photo: { uri: string; mimeType?: st
 }
 
 export const askStylist = (body: unknown) => asDevice<StylistReply>('/v1/stylist', { method: 'POST', body, timeoutMs: 60_000 });
+
+/* Store link (Nyoni App Bridge plugin) */
+
+export type StoreMemberView = {
+  member: { email: string | null; firstName: string | null; lastName: string | null };
+  club: { active: boolean; status: string; startedAt: string | null; expiresAt: string | null };
+  orders: {
+    id: number;
+    number: string;
+    status: string;
+    paid: boolean;
+    createdAt: string | null;
+    total: string;
+    currency: string;
+    items: { name: string; quantity: number; productId: string | null; size: string | null; image: string | null }[];
+  }[];
+};
+
+/** Exchanges the store's login token for a member session; links this device to the member. */
+export const exchangeLoginToken = (token: string, state: string) =>
+  asDevice<{ sessionToken: string; expiresAt: string; member: StoreMemberView }>('/v1/auth/nyoni', { method: 'POST', body: { token, state } });
+
+/** The store checkout link for the bag, after the server re-checks prices and stock. */
+export const createStoreCheckout = (lines: { productId: string; variantId: string; quantity: number }[]) =>
+  asDevice<{ ref: string; url: string; totalMinor: number }>('/v1/checkout', { method: 'POST', body: { lines } });
+
+export type StoreCheckoutStatus = { status: 'waiting' | 'pending' | 'paid' | 'cancelled' | 'refunded'; orderNumber: string | null };
+
+export const storeCheckoutStatus = (ref: string) => asDevice<StoreCheckoutStatus>(`/v1/checkout/${encodeURIComponent(ref)}`);
+

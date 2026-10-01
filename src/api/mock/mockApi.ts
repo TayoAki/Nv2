@@ -16,6 +16,8 @@ import {
   measureOnServer,
   deleteDeviceOnServer,
   checkScanPhotoOnServer,
+  createStoreCheckout,
+  storeCheckoutStatus,
   startImport,
   startRender,
   uploadImage,
@@ -25,6 +27,7 @@ import {
 } from '../ai';
 import { ApiError, isApiError } from '../errors';
 import type {
+  MediaImage,
   Bag,
   BagLine,
   BagNotice,
@@ -57,6 +60,7 @@ import { fetchCatalog, serverUrl } from '../server';
 import { getDb, persist, persistNow, resetDb, type JobScenario, type MockDb, type StoredJob, type StoredReceipt } from './db';
 import { buildWardrobe, COLOR_OPTIONS, COLORS } from './fixtures';
 import { demoMode } from '../mode';
+import { deleteMemberAccount, finishSignIn, getMember, signInWithNyoni, signOutMember, storeStatus } from '../store';
 import { recommend, type StylistResult } from './stylistEngine';
 
 /* ------------------------------------------------------------------------------------ helpers */
@@ -978,6 +982,23 @@ export const mockApi: NyoniApi = {
     requireAdmin(db);
   },
 
+  /** The demo has no store link: nothing configured, nothing received. */
+  async adminGetStoreLink() {
+    const db = await request();
+    requireAdmin(db);
+    return {
+      configured: { bridge: false, webhooks: false, checkoutMode: 'link' as const },
+      counts: { products: 0, variations: 0, orders: 0, members: 0 },
+      recentEvents: [],
+      pendingDeletions: [],
+    };
+  },
+
+  async adminMarkDeletionDone() {
+    const db = await request('write');
+    requireAdmin(db);
+  },
+
   async resetInventory(productId) {
     const db = await request('write');
     requireAdmin(db);
@@ -1374,6 +1395,103 @@ export const mockApi: NyoniApi = {
     if (enabled) db.wardrobe.push(...buildWardrobe(now(), 'example'));
     persist();
     return clone([...db.wardrobe].sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+  },
+
+  async syncPurchases(orders) {
+    const db = await request('write');
+    const time = iso();
+    const keep = new Set<string>();
+    for (const order of orders) {
+      order.items.forEach((line, index) => {
+        const id = `w-order-${order.id}-${index}`;
+        keep.add(id);
+        const product = line.productId ? db.products.find((p) => p.id === line.productId) : undefined;
+        const category = product ? PRODUCT_TO_WARDROBE[product.category] : 'accessories';
+        const ownership = order.status === 'completed' ? 'owned' : 'ordered';
+        const existing = db.wardrobe.find((w) => w.id === id);
+        if (existing) {
+          // The shopper may have renamed or archived it; only the order status moves on.
+          if (existing.ownership !== ownership) Object.assign(existing, { ownership, updatedAt: time });
+          return;
+        }
+        const image: MediaImage | undefined = product?.images[0] ?? (line.image ? { uri: line.image, alt: line.name } : undefined);
+        db.wardrobe.unshift({
+          id,
+          name: product?.title ?? line.name,
+          category,
+          kind: product?.kind ?? CATEGORY_KIND[category],
+          color: product?.color ?? null,
+          pattern: product?.pieces[0] ? product.pieces[0].pattern : null,
+          brand: 'Nyoni Couture',
+          size: line.size,
+          availability: 'ready',
+          archived: false,
+          favorite: false,
+          ownership,
+          provenance: 'order',
+          capsuleKey: product?.pieces[0]?.key,
+          image,
+          photos: image ? [image] : [],
+          tryOnEligible: product?.tryOn.eligible ?? false,
+          createdAt: order.createdAt ?? time,
+          updatedAt: time,
+        });
+      });
+    }
+    // Refunded or cancelled orders no longer come back from the store.
+    db.wardrobe = db.wardrobe.filter((w) => !w.id.startsWith('w-order-') || keep.has(w.id));
+    if (keep.size > 0) db.wardrobe = db.wardrobe.filter((w) => w.provenance !== 'example');
+    persist();
+  },
+
+  async getStoreStatus() {
+    return demoMode ? null : storeStatus();
+  },
+
+  async signInWithNyoni() {
+    return signInWithNyoni();
+  },
+
+  async finishNyoniSignIn(url) {
+    await finishSignIn(url);
+  },
+
+  async getMember() {
+    if (demoMode) return null;
+    const member = await getMember();
+    if (member) await mockApi.syncPurchases(member.orders);
+    return member;
+  },
+
+  async signOutMember() {
+    await signOutMember();
+  },
+
+  async deleteMemberAccount() {
+    await deleteMemberAccount();
+    // Purchases came from the account; the rest of this phone's data stays until "Delete all my data".
+    const db = await request('write');
+    db.wardrobe = db.wardrobe.filter((w) => !w.id.startsWith('w-order-'));
+    await persistNow();
+  },
+
+  async startStoreCheckout() {
+    const db = await request('write');
+    if (db.bag.length === 0) throw new ApiError('validation', 'Your bag is empty.');
+    return createStoreCheckout(db.bag.map((line) => ({ productId: line.productId, variantId: line.variantId, quantity: line.quantity })));
+  },
+
+  async getStoreCheckoutStatus(ref) {
+    const status = await storeCheckoutStatus(ref);
+    if (status.status === 'paid') {
+      // The store has the order; its basket is emptied, so the app's bag is too.
+      const db = await request('write');
+      if (db.bag.length) {
+        db.bag = [];
+        await persistNow();
+      }
+    }
+    return status;
   },
 
   async getWardrobeItem(id) {

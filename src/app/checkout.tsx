@@ -14,10 +14,12 @@ import { GarmentImage } from '@/components/media/GarmentImage';
 import { AppText } from '@/components/ui/AppText';
 import { Button } from '@/components/ui/Button';
 import { Card, Divider } from '@/components/ui/Card';
-import { Banner, StateView } from '@/components/ui/Feedback';
+import { Banner, ProgressRing, StateView } from '@/components/ui/Feedback';
 import { SelectField } from '@/components/ui/SelectField';
 import { TextField } from '@/components/ui/TextField';
+import { useStartStoreCheckout, useStoreCheckoutStatus, useStoreStatus } from '@/data/member';
 import { useBag, useCancelCheckout, useCreateCheckoutHandoff, useSubmitDemoCheckout } from '@/data/shop';
+import { track } from '@/lib/analytics';
 import { formatMoney } from '@/lib/format';
 import { openExternal, STORE_HOST, STORE_URL } from '@/lib/links';
 import { showToast } from '@/state/toast';
@@ -323,7 +325,132 @@ function Section({
  * Until the store connection (checkout links) is live, orders are placed on nyonicouture.com.
  * Nothing is confirmed here: only the store confirms orders.
  */
+/** With the store link live, the whole bag goes to the store's checkout in one step. */
 function FinishOnStore() {
+  const status = useStoreStatus();
+  const [fallback, setFallback] = useState(false);
+  if (status.isPending) {
+    return (
+      <Screen header={<AppHeader left="close" fallbackHref="/bag" title="Checkout" showBrand={false} />} bottomInset>
+        <StateView kind="loading" />
+      </Screen>
+    );
+  }
+  return status.data?.checkout && !fallback ? <StoreCheckout onFallback={() => setFallback(true)} /> : <OpenEachPiece />;
+}
+
+function StoreCheckout({ onFallback }: { onFallback: () => void }) {
+  const bag = useBag();
+  const start = useStartStoreCheckout();
+  const [checkout, setCheckout] = useState<{ ref: string; url: string } | null>(null);
+  const ref = checkout?.ref ?? null;
+  const order = useStoreCheckoutStatus(ref);
+  const lines = bag.data?.lines ?? [];
+  const header = <AppHeader left="close" fallbackHref="/bag" title="Checkout" showBrand={false} />;
+
+  const open = () => {
+    // The same checkout again: a new one would lose track of an order placed from the first.
+    if (checkout) return void openExternal(checkout.url);
+    start.mutate(undefined, {
+      onSuccess: (next) => {
+        setCheckout(next);
+        track('checkout_started', { lines: lines.length });
+        void openExternal(next.url);
+      },
+      // Pieces the store link doesn't cover yet: buy them one by one on the website.
+      onError: (error) => {
+        if (isApiError(error) && error.code === 'unavailable') onFallback();
+      },
+    });
+  };
+
+  const state = order.data?.status;
+  if (state === 'paid') {
+    return (
+      <Screen header={header} bottomInset>
+        <View style={styles.store}>
+          <BrandLockup height={40} plate />
+          <AppText variant="title" align="center" accessibilityRole="header">
+            Order confirmed
+          </AppText>
+          <AppText variant="body" color={colors.muted} align="center">
+            nyonicouture.com confirmed order {order.data?.orderNumber ? `#${order.data.orderNumber}` : ''}. Your receipt comes from the store by
+            email.
+          </AppText>
+          <Button title="Continue shopping" variant="gold" onPress={() => router.dismissTo('/shop')} />
+        </View>
+      </Screen>
+    );
+  }
+
+  return (
+    <Screen header={header} bottomInset>
+      <View style={styles.store}>
+        <BrandLockup height={40} plate />
+        <AppText variant="title" align="center" accessibilityRole="header">
+          {ref ? 'Finish paying on nyonicouture.com' : 'Checkout on nyonicouture.com'}
+        </AppText>
+        <AppText variant="body" color={colors.muted} align="center">
+          {ref
+            ? 'Your bag is in the store’s checkout. Pay there; this screen updates once the store confirms your order.'
+            : 'Your bag opens in the Nyoni Couture checkout, with the sizes you chose. Payment, delivery and your receipt are handled by the store.'}
+        </AppText>
+        {bag.isPending ? (
+          <StateView compact kind="loading" />
+        ) : lines.length === 0 && !ref ? (
+          <StateView compact kind="empty" icon="bag" title="Your bag is empty" actionLabel="Continue shopping" onAction={() => router.dismissTo('/shop')} />
+        ) : !ref ? (
+          <Card padded={false}>
+            {lines.map((line, index) => (
+              <View key={line.id}>
+                {index > 0 ? <Divider /> : null}
+                <View style={styles.storeLine}>
+                  <GarmentImage image={line.image} kind={line.kind} colorHex={line.color.hex} contentFit="contain" aspectRatio={0.8} rounded={8} style={styles.storeThumb} />
+                  <View style={styles.storeLineText}>
+                    <AppText variant="heading" numberOfLines={2}>
+                      {line.title}
+                    </AppText>
+                    <AppText variant="secondary" color={colors.muted}>
+                      Size {line.sizeLabel} · Qty {line.quantity} · {formatMoney(line.lineTotal)}
+                    </AppText>
+                  </View>
+                </View>
+              </View>
+            ))}
+          </Card>
+        ) : null}
+        {start.isError && !(isApiError(start.error) && start.error.code === 'unavailable') ? (
+          <Banner tone={isNetworkError(start.error) ? 'offline' : 'error'} message={errorMessage(start.error)} />
+        ) : null}
+        {state === 'cancelled' || state === 'refunded' ? (
+          <Banner tone="notice" title="The store didn’t complete this order" message="Nothing was charged by the app. Your bag is still here." />
+        ) : null}
+        {ref && (state === 'waiting' || state === 'pending' || !state) ? (
+          <View style={styles.waiting}>
+            <ProgressRing size={28} />
+            <AppText variant="secondary" color={colors.muted} style={styles.flex}>
+              {state === 'pending' ? 'The store has your order and is waiting for payment.' : 'Waiting for nyonicouture.com…'}
+            </AppText>
+          </View>
+        ) : null}
+        {lines.length > 0 || ref ? (
+          <Button
+            title={ref ? 'Open the checkout again' : 'Secure checkout'}
+            icon="externalLink"
+            variant={ref ? 'outline' : 'gold'}
+            accessibilityRole="link"
+            loading={start.isPending}
+            onPress={open}
+          />
+        ) : null}
+        <Button title="Back to bag" variant="link" tone="ink" onPress={() => (router.canGoBack() ? router.back() : router.replace('/bag'))} />
+      </View>
+    </Screen>
+  );
+}
+
+/** Until the store link is live: open each piece on the website and buy it there. */
+function OpenEachPiece() {
   const bag = useBag();
   const lines = bag.data?.lines ?? [];
 
@@ -391,6 +518,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: space.sm,
     padding: space.sm,
+  },
+  waiting: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
   },
   storeThumb: {
     width: 72,

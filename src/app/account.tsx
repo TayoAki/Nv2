@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { apiMode, errorMessage, isApiError, isNetworkError, type SignInLinkResult, type SignInResult } from '@/api';
+import { apiMode, errorMessage, isApiError, isNetworkError, type SignInLinkResult, type SignInResult, type StoreMemberView } from '@/api';
 import { COLORS } from '@/api/mock/fixtures';
 import { demoMode } from '@/api/mode';
 import { BrandLockup } from '@/components/brand/BrandLockup';
@@ -16,6 +16,7 @@ import { Card, Divider } from '@/components/ui/Card';
 import { Banner, StateView } from '@/components/ui/Feedback';
 import { ListRow } from '@/components/ui/ListRow';
 import { TextField } from '@/components/ui/TextField';
+import { useDeleteMemberAccount, useMember, useSignInWithNyoni, useSignOutMember, useStoreStatus } from '@/data/member';
 import {
   useCompleteDemoSignIn,
   useRequestSignInLink,
@@ -31,9 +32,113 @@ import { colors, space } from '@/theme';
 type Mode = 'sign_in' | 'recover';
 
 /** 16 · Account and recovery — /account. No tab bar. */
-/** Beta and store builds are guest-only until "Sign in with Nyoni" (the store plugin) is live. */
+/**
+ * Beta and store builds: "Sign in with Nyoni" once the store plugin is connected (the server
+ * says so), and a guest-only screen until then.
+ */
 export default function AccountScreen() {
-  return demoMode ? <DemoAccountScreen /> : <GuestAccount />;
+  return demoMode ? <DemoAccountScreen /> : <StoreAccount />;
+}
+
+function StoreAccount() {
+  const status = useStoreStatus();
+  const member = useMember();
+  const header = <AppHeader left="close" fallbackHref="/shop" showBrand={false} />;
+  if (status.isPending || (status.data?.signIn && member.isPending)) {
+    return (
+      <Screen header={header} bottomInset>
+        <StateView kind="loading" />
+      </Screen>
+    );
+  }
+  if (!status.data?.signIn) return <GuestAccount />;
+  return (
+    <Screen header={header} bottomInset>
+      {member.data ? <MemberAccount member={member.data} /> : <NyoniSignIn />}
+    </Screen>
+  );
+}
+
+function NyoniSignIn() {
+  const signIn = useSignInWithNyoni();
+  const start = () =>
+    signIn.mutate(undefined, {
+      onSuccess: (result) => {
+        if (result === 'signed_in') showToast('Signed in');
+      },
+    });
+  return (
+    <View style={styles.guest}>
+      <Hero />
+      <AppText variant="title" align="center" accessibilityRole="header">
+        Sign in with your Nyoni account
+      </AppText>
+      <AppText variant="body" color={colors.muted} align="center">
+        Use the account you shop with on nyonicouture.com. The pieces you’ve bought appear in your closet, and Nyoni Club
+        benefits switch on.
+      </AppText>
+      {signIn.isError ? <Banner tone={isNetworkError(signIn.error) ? 'offline' : 'error'} message={errorMessage(signIn.error)} /> : null}
+      <Button title="Sign in with Nyoni" variant="gold" icon="account" loading={signIn.isPending} onPress={start} />
+      <AppText variant="caption" color={colors.muted} align="center">
+        No account yet? Choose “Register” on the Nyoni page that opens. You can keep using the app as a guest.
+      </AppText>
+      <Button title="Photos and privacy" variant="outline" icon="shieldCheck" onPress={() => router.replace('/privacy')} />
+      <Button title="Continue as a guest" variant="link" tone="ink" onPress={() => goBack('/shop')} />
+    </View>
+  );
+}
+
+function MemberAccount({ member }: { member: StoreMemberView }) {
+  const signOut = useSignOutMember();
+  const remove = useDeleteMemberAccount();
+  const name = [member.member.firstName, member.member.lastName].filter(Boolean).join(' ');
+  const pieces = member.orders.reduce((sum, order) => sum + order.items.length, 0);
+
+  const deleteAccount = async () => {
+    const ok = await confirm({
+      title: 'Delete your Nyoni account?',
+      message:
+        'Your purchases, Club status and sign-in are removed from the app now, and the Nyoni team erases your nyonicouture.com account. Order records the law requires are kept. This can’t be undone.',
+      confirmLabel: 'Delete my account',
+      destructive: true,
+    });
+    if (!ok) return;
+    remove.mutate(undefined, {
+      onSuccess: () => showToast('Your account is being deleted'),
+      onError: (error) => showToast(errorMessage(error), { tone: 'error' }),
+    });
+  };
+
+  return (
+    <View style={styles.guest}>
+      <Hero />
+      <AppText variant="title" align="center" accessibilityRole="header">
+        {name ? `Signed in as ${name}` : 'Signed in'}
+      </AppText>
+      {member.member.email ? (
+        <AppText variant="body" color={colors.muted} align="center">
+          {member.member.email}
+        </AppText>
+      ) : null}
+      <Card padded={false}>
+        <ListRow
+          icon="closet"
+          title="Your purchases"
+          subtitle={pieces ? `${pluralize(pieces, 'piece')} in your closet` : 'Pieces you buy on nyonicouture.com appear here'}
+          onPress={() => router.dismissTo('/closet')}
+        />
+        <Divider />
+        <ListRow
+          icon="sparkle"
+          title="Nyoni Club"
+          subtitle={member.club.active ? `Member${member.club.expiresAt ? ` until ${new Date(member.club.expiresAt).toLocaleDateString()}` : ''}` : 'Not a member'}
+        />
+      </Card>
+      <Button title="Photos and privacy" variant="outline" icon="shieldCheck" onPress={() => router.replace('/privacy')} />
+      <Button title="Sign out" variant="outline" loading={signOut.isPending} onPress={() => signOut.mutate(undefined, { onSuccess: () => showToast('Signed out') })} />
+      <Button title="Delete my account" variant="link" tone="ink" loading={remove.isPending} onPress={deleteAccount} />
+    </View>
+  );
 }
 
 function DemoAccountScreen() {

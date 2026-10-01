@@ -144,6 +144,15 @@ export function createApp() {
     return c.json({ provider: provider.name, features: { renders: true, imports: true, stylist: !!provider.chat, measurements: !!(env.measureUrl && env.measureToken) } });
   });
 
+  /*
+   * Which store features are live, so the app can show "Sign in with Nyoni" and in-app checkout
+   * only once the plugin is connected, without an app update.
+   */
+  app.get('/v1/store/status', async (c) => {
+    const linked = await pool.query<{ count: string }>("select count(*) from woo_products where data->>'status' = 'publish'");
+    return c.json({ signIn: !!env.bridgeSecret, checkout: !!env.bridgeSecret && Number(linked.rows[0].count) > 0, storeUrl: env.storeUrl });
+  });
+
   /* The store link: signed events from the plugin and WooCommerce. */
   app.route('/v1/woo', storeRoutes());
 

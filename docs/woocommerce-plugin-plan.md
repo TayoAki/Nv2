@@ -3,7 +3,7 @@
 How the Nyoni Couture app works with the WooCommerce store, and the spec for the **Nyoni App Bridge** WordPress plugin.
 
 - **Who builds what:** Nyoni's developer builds the plugin (section 4). The app and server side (section 5) are built in this repo.
-- **Status:** plan, version 3. Nothing is installed on the store yet.
+- **Status:** plan, version 3. The plugin (Nyoni App Bridge 1.0.1) is built but not installed. The app and server side (section 5) is built and deployed, waiting for the secrets. See [section 11](#11-integration-status).
 - **New in version 3:** guest and member modes (2a), purchase history into the closet, in-app account deletion (4.8), the app reviewer account (4.9), and the app store rules on AI consent and account deletion (9).
 
 ## Contents
@@ -18,6 +18,7 @@ How the Nyoni Couture app works with the WooCommerce store, and the spec for the
 8. [Why this approach](#8-why-this-approach)
 9. [iOS App Store rules](#9-ios-app-store-rules)
 10. [Open questions](#10-open-questions)
+11. [Integration status](#11-integration-status)
 
 ---
 
@@ -446,6 +447,44 @@ Reviewers must be able to sign in. On the **live** store, create a customer acco
 2. Should Club auto-renew (needs WooCommerce Subscriptions) or be a one-year product?
 3. What are the Club perks?
 4. Beta testers: invite list and timing.
+
+## 11. Integration status
+
+**Updated 1 October 2026**, after the plugin handoff (build 1.0.1).
+
+### Built in this repo (section 5)
+
+| Route | What it does |
+| --- | --- |
+| `POST /v1/woo/bridge` | Checks `X-Nyoni-Signature` (HMAC-SHA256 over `timestamp + "." + raw body`, the hex secret used as text), rejects timestamps more than 5 minutes off, and ignores repeated `X-Nyoni-Event-Id`s. Handles `ping`, `catalog.batch` (including the variation `image`), `customer.orders`, `membership.updated` and `account.deleted`. Accepts unknown types with `{"ok":true,"ignored":true}`. |
+| `POST /v1/woo/webhooks` | Checks `X-WC-Webhook-Signature`. Handles product and order created, updated and deleted, including single-variation product webhooks. An older delivery never overwrites a newer one. Answers WooCommerce's unsigned `webhook_id=…` ping when a webhook is saved. |
+| `POST /v1/auth/nyoni` | Checks the login token: HS256, `aud` `nyoni-app`, `iss` = the store's home URL, string `sub`, `state`, expiry, and single-use `jti`. Returns a member session. |
+| `GET /v1/me`, `DELETE /v1/me` | Profile, Club status and purchases matched to the app catalog; account deletion. |
+| `POST /v1/checkout`, `GET /v1/checkout/:ref` | Re-checks the bag, builds the checkout link with a new `nyoni_app` ref, and reports the order's status from the order webhook. |
+| `GET /v1/store/status` | Tells the app whether sign-in and checkout are on. |
+
+- **What it stores:** no order emails, addresses or payment details.
+- **Live stock:** catalog products are matched to store products by product page URL, and sizes to variations by label. Store stock and prices then replace the export's.
+- **The app:** "Sign in with Nyoni", purchases in the closet, store checkout with "Order confirmed" only after the store's order webhook, "Delete my account", and a **Store link** page in the store admin. It all switches on by itself once the server has the secrets, so **no app update is needed**.
+
+**Tests:** 19 server tests use fixtures shaped like the plugin's events. A browser test against a local stand-in store covers sign-in, purchases in the closet, a paid checkout and account deletion.
+
+### Differences from the plan
+
+1. **No account-deletion page in the plugin** (plan 4.8). The app's "Delete my account" deletes everything the app server holds straight away. The store account is then listed under **Store admin → Store link → Accounts to erase on the store**, and staff erase it in WordPress (Tools → Erase Personal Data) and mark it done. Apple accepts this, but it depends on staff. Adding 4.8 to the plugin would make it automatic, and the server already handles `account.deleted`.
+2. **Checkout links:** the server uses WooCommerce's `/checkout-link/?products=` by default. If staging shows that variation IDs don't work there, set `WOO_CHECKOUT_MODE=signed` in Railway to use the plugin's `/nyoni-checkout/` fallback. Its signature is `base64url(HMAC-SHA256(secret, "items=…&nyoni_app=…"))`; **IT to confirm this matches the plugin's README.**
+3. **Login token issuer:** the server expects `iss` to equal `STORE_URL` (default `https://nyonicouture.com`, no trailing slash). For staging, set `STORE_URL` to the staging home URL.
+
+### What IT does next
+
+1. Install and activate on **staging**. Set the server URL to `https://api-production-b54e.up.railway.app`. Leave the allowed return URLs at their defaults (`nyonicouture://` and `https://web-production-98e6c5.up.railway.app/`). Add the Club product IDs.
+2. In Railway (api service → Variables), set:
+   - `NYONI_BRIDGE_SECRET`: from the plugin's settings page;
+   - `WOO_WEBHOOK_SECRET`: the secret typed into the five webhooks;
+   - `STORE_URL`: the staging home URL, for staging only.
+3. Create the five webhooks (4.6), then press **Test connection** and **Send catalogue to app**. **Store admin → Store link** should show the events, and product and size counts that match the store.
+4. Run the staging checks in 4.7: login and registration, a sandbox purchase (classic and block checkout), Club changes, and retries during downtime.
+5. For live: switch `STORE_URL` back to `https://nyonicouture.com`, install on the live store, and run Send catalogue again.
 
 ## Sources
 

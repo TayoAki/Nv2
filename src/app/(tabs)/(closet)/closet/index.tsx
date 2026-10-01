@@ -15,6 +15,7 @@ import { TwoColumnGrid } from '@/components/ui/Grid';
 import { ListRow } from '@/components/ui/ListRow';
 import { Sheet } from '@/components/ui/Sheet';
 import { useSession, useEnsureAiConsent } from '@/data/account';
+import { useMember } from '@/data/member';
 import { useDeleteWardrobeItem, useSetExampleCloset, useUpdateWardrobeItem, useWardrobe } from '@/data/closet';
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import { confirm } from '@/lib/confirm';
@@ -42,6 +43,8 @@ const CATEGORY_ORDER: WardrobeCategory[] = ['jackets', 'waistcoats', 'shirts', '
 export default function ClosetScreen() {
   const wardrobe = useWardrobe();
   const session = useSession();
+  // A signed-in member's store purchases come into the closet.
+  useMember();
   const [filter, setFilter] = useState<Filter>('all');
   const [addOpen, setAddOpen] = useState(false);
   const [actionsFor, setActionsFor] = useState<WardrobeItem | null>(null);

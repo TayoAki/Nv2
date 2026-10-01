@@ -41,6 +41,18 @@ export function useMarkReportReviewed() {
   });
 }
 
+export function useAdminStoreLink() {
+  return useQuery({ queryKey: keys.adminStoreLink, queryFn: () => api.adminGetStoreLink() });
+}
+
+export function useMarkDeletionDone() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.adminMarkDeletionDone(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.adminStoreLink }),
+  });
+}
+
 export function useAdminProducts() {
   return useQuery({ queryKey: keys.adminProducts, queryFn: () => api.adminListProducts() });
 }

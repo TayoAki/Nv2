@@ -6,6 +6,7 @@ export const keys = {
   adminProducts: ['admin', 'products'] as const,
   adminSession: ['admin', 'session'] as const,
   adminReports: ['admin', 'reports'] as const,
+  adminStoreLink: ['admin', 'store'] as const,
   bag: ['bag'] as const,
   tryOnRoot: ['try-on'] as const,
   tryOn: (id: string) => ['try-on', 'job', id] as const,
@@ -25,6 +26,9 @@ export const keys = {
   savedOutfits: ['outfit', 'saved'] as const,
   styleProfile: ['style-profile'] as const,
   session: ['session'] as const,
+  storeStatus: ['store', 'status'] as const,
+  member: ['store', 'member'] as const,
+  storeCheckout: (ref: string) => ['store', 'checkout', ref] as const,
   privacy: ['privacy'] as const,
   bodyMeasurements: ['body-measurements'] as const,
 };

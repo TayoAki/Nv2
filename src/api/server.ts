@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { withBundledImages } from './catalog/capsule';
 import type { NyoniApi } from './client';
 import { ApiError, type ApiErrorCode } from './errors';
-import type { AdminReport, AdminSession, Product } from './types';
+import type { AdminReport, AdminSession, AdminStoreLink, Product } from './types';
 
 /**
  * The Nyoni server (server/, deployed on Railway). Set EXPO_PUBLIC_API_URL to use it; without
@@ -44,6 +44,8 @@ export type HttpInit = {
   auth?: boolean;
   /** Shopper device token (`Authorization: Device …`). */
   device?: string;
+  /** Member session from "Sign in with Nyoni" (`Authorization: Member …`). */
+  member?: string;
   timeoutMs?: number;
 };
 
@@ -60,6 +62,7 @@ export async function http<T>(path: string, init: HttpInit = {}): Promise<T> {
     headers.authorization = `Bearer ${token}`;
   }
   if (init.device) headers.authorization = `Device ${init.device}`;
+  if (init.member) headers.authorization = `Member ${init.member}`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), init.timeoutMs ?? TIMEOUT_MS);
   let response: Response;
@@ -105,6 +108,8 @@ type AdminApi = Pick<
   | 'resetInventory'
   | 'adminListReports'
   | 'adminMarkReportReviewed'
+  | 'adminGetStoreLink'
+  | 'adminMarkDeletionDone'
 >;
 
 export function createServerAdminApi(onCatalogChanged: () => void): AdminApi {
@@ -158,6 +163,10 @@ export function createServerAdminApi(onCatalogChanged: () => void): AdminApi {
     },
     async adminMarkReportReviewed(id) {
       await http<void>(`/v1/admin/reports/${encodeURIComponent(id)}/reviewed`, { method: 'PUT', auth: true });
+    },
+    adminGetStoreLink: () => http<AdminStoreLink>('/v1/admin/store', { auth: true }),
+    async adminMarkDeletionDone(id) {
+      await http<void>(`/v1/admin/account-deletions/${encodeURIComponent(id)}/done`, { method: 'PUT', auth: true });
     },
     async resetInventory(productId) {
       const product = await http<Product>(`/v1/admin/products/${encodeURIComponent(productId)}/inventory`, {

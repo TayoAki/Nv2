@@ -68,11 +68,14 @@ export default function RootLayout() {
               <Stack.Screen name="privacy" />
               <Stack.Screen name="checkout" options={{ presentation: 'modal' }} />
               <Stack.Screen name="account" options={{ presentation: 'modal' }} />
+              {/* Where nyonicouture.com returns after "Sign in with Nyoni". */}
+              <Stack.Screen name="auth" />
               {/* Staff tool: sizes, stock and prices until the WooCommerce sync is live. */}
               <Stack.Screen name="admin/login" />
               <Stack.Screen name="admin/index" />
               <Stack.Screen name="admin/[id]" />
               <Stack.Screen name="admin/reports" />
+              <Stack.Screen name="admin/store" />
             </Stack>
             <ToastHost />
           </View>

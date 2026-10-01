@@ -12,6 +12,7 @@ import type {
   PersonPhoto,
   PrivacyOverview,
   AdminReport,
+  AdminStoreLink,
   AdminSession,
   InventoryUpdate,
   Product,
@@ -27,6 +28,8 @@ import type {
   WardrobeImport,
   WardrobeItem,
 } from './types';
+import type { StoreCheckoutStatus, StoreMemberView } from './ai';
+import type { StoreStatus } from './store';
 
 export type WardrobeItemPatch = Partial<{
   name: string;
@@ -74,6 +77,15 @@ export type SignInResult = {
  *
  * `src/api/mock` implements it in memory for the demo build.
  */
+export type { StoreCheckoutStatus, StoreMemberView, StoreStatus };
+
+export type StorePurchase = {
+  id: number;
+  status: string;
+  createdAt: string | null;
+  items: { name: string; quantity: number; productId: string | null; size: string | null; image: string | null }[];
+};
+
 export interface NyoniApi {
   /* Catalog: store authoritative, read cache allowed. */
   listProducts(query?: ProductQuery): Promise<Product[]>;
@@ -95,6 +107,8 @@ export interface NyoniApi {
   /** Shopper reports about AI previews, newest open ones first. */
   adminListReports(): Promise<AdminReport[]>;
   adminMarkReportReviewed(id: string): Promise<void>;
+  adminGetStoreLink(): Promise<AdminStoreLink>;
+  adminMarkDeletionDone(id: string): Promise<void>;
 
   /* Photos: POST /photos/upload-intent + POST /photos/:id/complete; DELETE /photos/:id */
   uploadPhoto(photo: LocalPhoto, consentVersion: string): Promise<PersonPhoto>;
@@ -143,6 +157,28 @@ export interface NyoniApi {
   listWardrobe(): Promise<WardrobeItem[]>;
   /** Guests: show or remove the example closet (Nyoni pieces to try the stylist with). */
   setExampleCloset(enabled: boolean): Promise<WardrobeItem[]>;
+  /**
+   * Store purchases into the closet ("Sign in with Nyoni"): one piece per purchased item,
+   * "Ordered" until the store completes the order, removed when it's refunded or cancelled.
+   * Examples are dropped once a member has real purchases.
+   */
+  syncPurchases(orders: StorePurchase[]): Promise<void>;
+
+  /* Store link ("Sign in with Nyoni", store checkout). Off in demo builds and until the plugin is connected. */
+  getStoreStatus(): Promise<StoreStatus | null>;
+  /** Opens the store's login page; resolves when the shopper is back, signed in or not. */
+  signInWithNyoni(): Promise<'signed_in' | 'cancelled'>;
+  /** Finishes a sign-in from the store's redirect (the /auth screen). */
+  finishNyoniSignIn(url: string): Promise<void>;
+  /** The member's profile, Club status and purchases (also brought into the closet); null when signed out. */
+  getMember(): Promise<StoreMemberView | null>;
+  signOutMember(): Promise<void>;
+  /** "Delete my account": the app server's copy at once, the store account by Nyoni's team. */
+  deleteMemberAccount(): Promise<void>;
+  /** The bag as a store checkout link, after the server re-checks prices and stock. */
+  startStoreCheckout(): Promise<{ ref: string; url: string }>;
+  /** What the store says about that checkout. Only the store confirms an order. */
+  getStoreCheckoutStatus(ref: string): Promise<StoreCheckoutStatus>;
   getWardrobeItem(id: string): Promise<WardrobeItem>;
   updateWardrobeItem(id: string, patch: WardrobeItemPatch): Promise<WardrobeItem>;
   deleteWardrobeItem(id: string): Promise<{ affectedOutfitIds: string[] }>;
