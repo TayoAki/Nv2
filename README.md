@@ -74,6 +74,16 @@ Staff edit sizes, stock and prices at `/admin`. The admin runs **on the web only
 - **WooCommerce:** the sync button is disabled until the store is connected. The API methods (`adminListProducts`, `updateInventory`, `resetInventory` in `src/api/client.ts`) are what the app server implements against the WooCommerce REST API.
 - **Still derived:** occasions come from formality and the product copy.
 
+## Beta and store builds
+
+Builds with a server (`EXPO_PUBLIC_API_URL`) and without demo tools are what shoppers get:
+- the app opens as a guest with an example closet the shopper can remove;
+- AI features ask for consent first, naming the providers;
+- checkout opens each piece on nyonicouture.com;
+- sign-in shows "coming soon" until the WooCommerce plugin (`docs/woocommerce-plugin-plan.md`).
+
+`eas.json` has `preview` (internal testers) and `production` (TestFlight, Google Play) profiles. Store forms, privacy labels and the review notes are in `docs/store-submission.md`. What's left before beta is in `docs/beta-readiness.md`.
+
 ## Demo tools
 
 The demo tools are for development and automated tests. They're **off in every build unless `EXPO_PUBLIC_DEMO_TOOLS=true` is set**, so the Railway web app, beta and store builds never show them. To turn them on locally:

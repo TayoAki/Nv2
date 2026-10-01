@@ -708,11 +708,9 @@ function findDraft(imp: WardrobeImport, draftId: string): ImportDraft {
 /** The server's stylist (a model with tools; every proposal is checked there). */
 async function stylistOnServer(
   db: MockDb,
-  input: { text: string; ownedOnly: boolean; focusItemId?: string },
+  input: { text: string; ownedOnly: boolean; focusItemId?: string; previous?: Outfit },
 ): Promise<StylistResult> {
-  let reply;
-  try {
-    reply = await askStylist({
+  const body = {
       text: input.text,
       history: db.thread.slice(-12).map((m) => ({ role: m.role, text: m.text.slice(0, 1000) })),
       closet: db.wardrobe
@@ -728,16 +726,28 @@ async function stylistOnServer(
           available: item.availability === 'ready',
         })),
       ownedOnly: input.ownedOnly,
-      focusItemId: input.focusItemId,
+      // A follow-up keeps styling the same piece as the outfit before it.
+      focusItemId: input.focusItemId ?? input.previous?.focusItemId,
+      previousItemIds: input.previous?.items.flatMap((ref) => (ref.kind === 'owned' ? [ref.itemId] : [])).slice(0, 12),
       profile: {
         occasions: db.styleProfile.occasions,
         styleDirection: db.styleProfile.styleDirection,
         budgetMinor: db.styleProfile.budget?.amountMinor ?? null,
+        ownedFirst: db.styleProfile.ownedFirst,
       },
-    });
-  } catch (error) {
-    if (isApiError(error) && (error.code === 'network' || error.code === 'quota')) throw error;
-    throw new ApiError('model_failure', 'Your stylist is unavailable right now. Please try again in a moment.');
+  };
+  let reply;
+  try {
+    reply = await askStylist(body);
+  } catch (first) {
+    // One quick retry for a model hiccup; not for offline, limits or a request that timed out.
+    if (isApiError(first) && (first.code === 'network' || first.code === 'quota' || first.code === 'validation')) throw first;
+    try {
+      reply = await askStylist(body);
+    } catch (error) {
+      if (isApiError(error) && (error.code === 'network' || error.code === 'quota')) throw error;
+      throw new ApiError('model_failure', 'Your stylist is unavailable right now. Please try again in a moment.');
+    }
   }
   if (reply.status !== 'ok') {
     return { status: reply.status, reply: reply.reply, suggestedProductId: reply.suggestedProductId ?? undefined };
@@ -1530,10 +1540,16 @@ export const mockApi: NyoniApi = {
       throw new ApiError('model_failure', 'Your stylist is unavailable right now. Please try again in a moment.');
     }
     const lastOutfitId = [...db.thread].reverse().find((m) => m.outfitId)?.outfitId;
+    const previous = db.outfits.find((o) => o.id === lastOutfitId);
     const status = serverAi() ? await aiStatus() : null;
+    // Outside demo builds the answer comes from the AI stylist or not at all: no quiet switch
+    // to the rule-based stylist, so testers always know what answered.
+    if (serverAi() && !demoMode && !status?.features.stylist) {
+      throw new ApiError(status ? 'unavailable' : 'network', status ? 'Your stylist is unavailable right now. Please try again in a moment.' : 'We couldn’t reach Nyoni. Check your connection and try again.');
+    }
     if (status?.features.stylist) requireAiConsent(db);
     const result = status?.features.stylist
-      ? await stylistOnServer(db, { text: trimmed, ownedOnly, focusItemId })
+      ? await stylistOnServer(db, { text: trimmed, ownedOnly, focusItemId, previous })
       : recommend({
           text: trimmed,
           ownedOnly,
@@ -1541,7 +1557,7 @@ export const mockApi: NyoniApi = {
           wardrobe: db.wardrobe,
           products: db.products,
           profile: db.styleProfile,
-          previous: db.outfits.find((o) => o.id === lastOutfitId),
+          previous,
         });
 
     const time = iso();

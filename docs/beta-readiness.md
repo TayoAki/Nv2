@@ -1,6 +1,6 @@
 # Beta readiness audit
 
-**Audited on:** 1 October 2026.
+**Audited on:** 1 October 2026. **Updated** the same day: the Beta 1 checklist below shows what has been fixed since.
 **Build:** the current `claude/bold-gauss-nclfml` branch, connected to the live Railway API, with real AI (OpenRouter) and no demo tools.
 
 **Method:**
@@ -195,21 +195,29 @@ Every finding below was checked against the code.
 ### Recommended "Beta 1": guest-only, buy on the store
 This is the fastest honest beta. It keeps everything that works and removes what's simulated.
 
-**I can do now, in this repo:**
-- [ ] New installs start empty: no sample closet, looks, outfits, chat or bag.
-- [ ] Replace in-app checkout with "Buy on nyonicouture.com", opening the product's store page with the chosen size.
-- [ ] Hide Account and sign-in. Remove sync promises and demo wording everywhere.
-- [ ] Scan: stop on non-pose errors, handle camera failure, pause in the background, keep the screen awake.
-- [ ] Stylist: send the previous outfit and focus piece with follow-ups; no silent fallback; better waiting state, timeout and retry; wire up owned-first, and fix the budget label.
-- [ ] Delete cut-outs (and other server images) when pieces are deleted.
-- [ ] Send preview reports to the server, with a staff view in the admin panel.
-- [ ] Crash and error reporting (Sentry) and real analytics events.
-- [ ] iPhone and Android build setup (`eas.json`, bundle IDs, version numbers) for TestFlight and Google Play internal testing.
-- [ ] Remove the artificial delay; hide Store admin from shoppers; tighten CORS.
+**Done in this repo** (see `docs/store-submission.md` for the store forms):
+- [x] New installs start as guests with an example closet, marked "Example", that the shopper can remove. No sample looks, chat, bag or orders.
+- [x] Checkout opens each piece on nyonicouture.com. The in-app simulated checkout only exists in demo builds.
+- [x] Sign-in hidden ("coming soon"). Sync promises and demo wording removed.
+- [x] Scan: only pose problems retake on their own, at most 4 in a row. Offline, service and limit errors stop with "Try again". A camera that won't start offers the upload route. The countdown pauses in the background, the screen stays awake, and the last voice line isn't cut off.
+- [x] Stylist: follow-ups send the last outfit and the piece being styled. No silent switch to the rule engine. Clearer waiting text, a 60-second timeout and one automatic retry. "Use owned pieces first" is sent. The budget label now says it applies to each suggested piece.
+- [x] Deleting a piece, or discarding it from an import, deletes its cut-out on the server.
+- [x] Preview reports reach the server, with a "Preview reports" view in the store admin.
+- [x] AI consent before any photo or message leaves the phone, naming the providers (Apple 5.1.2(i)). It can be withdrawn under Privacy.
+- [x] "Delete all my data" deletes the device and everything stored for it on the server.
+- [x] Privacy policy and terms linked in the menu, on the privacy screen and on the consent sheet.
+- [x] iPhone and Android build setup: `eas.json`, bundle ID and package `com.nyonicouture.app`, versions kept by EAS.
+- [x] Crash screen instead of a blank app.
+- [x] Artificial delay removed outside demo builds. Store admin hidden from shoppers.
+
+**Still to do:**
+- [ ] Crash reporting service (Sentry) and real analytics events: needs Nyoni's choice of provider.
+- [ ] Tighten CORS to the web app's address.
+- [ ] Test on real iPhones and Android phones once the first builds exist: camera, HEIC photos, permissions.
 
 **Nyoni needs to provide:**
-- [ ] The real booking, contact and privacy-policy URLs.
-- [ ] A privacy policy and terms covering AI photo processing and measurements.
+- [ ] The real booking and contact URLs.
+- [x] Privacy policy and terms URLs (linked in the app). **Check that the policy covers the app**: the list is in `docs/store-submission.md`.
 - [ ] Real sizes and stock for every product: in the admin panel now, or through the plugin later.
 - [ ] An Apple Developer account and a Google Play developer account, for test builds.
 - [ ] A monthly spending limit on the OpenRouter key, and a new key.
@@ -225,6 +233,6 @@ This follows the plugin plan:
 
 ### Already done
 - Live AI everywhere, with spending limits.
-- 38 server tests, 9 measurement tests and 13 browser flows passing.
+- 42 server tests, 9 measurement tests and the browser flows passing.
 - Demo tools hidden from beta builds.
 - Photos deleted after measuring, and try-on photos after 24 hours.

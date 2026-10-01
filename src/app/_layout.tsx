@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
 import { getDb } from '@/api/mock/db';
+import { CrashScreen } from '@/components/layout/CrashScreen';
 import { HeaderMenuSheet } from '@/components/layout/HeaderMenuSheet';
 import { AiConsentSheet } from '@/components/privacy/AiConsentSheet';
 import { ToastHost } from '@/components/layout/ToastHost';
@@ -12,6 +13,9 @@ import { queryClient, wireQueryEnvironment } from '@/data/queryClient';
 import { colors } from '@/theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
+
+/** Any screen that crashes shows a recoverable message instead of a blank app. */
+export const ErrorBoundary = CrashScreen;
 
 export const unstable_settings = {
   anchor: '(tabs)',

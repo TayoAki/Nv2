@@ -1,12 +1,13 @@
 import { CameraView, useCameraPermissions, type CameraType } from 'expo-camera';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import * as Speech from 'expo-speech';
 import { useEffect, useRef, useState } from 'react';
-import { Linking, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { AppState, Linking, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { errorMessage, type LocalPhoto } from '@/api';
+import { errorMessage, isApiError, type LocalPhoto } from '@/api';
 import { Icon } from '@/components/icons/Icon';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { Screen } from '@/components/layout/Screen';
@@ -27,7 +28,8 @@ type Stage =
   | { pose: Pose; status: 'counting'; count: number }
   | { pose: Pose; status: 'checking' }
   | { pose: Pose; status: 'fix'; message: string }
-  | { pose: Pose; status: 'paused' };
+  | { pose: Pose; status: 'paused' }
+  | { pose: Pose; status: 'error'; title: string; message: string };
 
 const POSES: Record<Pose, { title: string; instruction: string; speech: string }> = {
   front: {
@@ -44,6 +46,11 @@ const POSES: Record<Pose, { title: string; instruction: string; speech: string }
 
 /** Seconds before each photo: time to walk back for the first one, less for the turn. */
 const COUNTDOWN: Record<Pose, number> = { front: 10, side: 6 };
+
+/** Retakes in a row before the scan stops retrying on its own and offers help. */
+const MAX_RETAKES = 4;
+
+const KEEP_AWAKE_TAG = 'body-scan';
 
 /** Body scan — /body-scan. Guided camera capture: front and side, voice countdown, checked per shot. */
 export default function BodyScanScreen() {
@@ -193,6 +200,9 @@ function Capture({ heightCm, helper, onDone, onCancel }: { heightCm: number; hel
   const [stage, setStage] = useState<Stage>({ pose: 'front', status: 'counting', count: COUNTDOWN.front });
   const [photos, setPhotos] = useState<Partial<Record<Pose, LocalPhoto>>>({});
   const [measureError, setMeasureError] = useState<string | null>(null);
+  const [cameraError, setCameraError] = useState(false);
+  const [retakes, setRetakes] = useState(0);
+  const finished = useRef(false);
   const facing: CameraType = helper === 'propped' ? 'front' : 'back';
 
   const say = (text: string) => {
@@ -201,8 +211,30 @@ function Capture({ heightCm, helper, onDone, onCancel }: { heightCm: number; hel
     Speech.speak(text, { language: 'en-US', rate: 1 });
   };
 
-  // Stop talking when the screen closes.
-  useEffect(() => () => void Speech.stop(), []);
+  // The screen stays on for the whole scan; nobody can tap it from 2–3 m away. Failures are
+  // ignored: on web the lock can be refused, or released before it activates.
+  useEffect(() => {
+    activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => undefined);
+    return () => void deactivateKeepAwake(KEEP_AWAKE_TAG).catch(() => undefined);
+  }, []);
+
+  // Stop talking when the screen closes, unless it's the last line after measuring.
+  useEffect(
+    () => () => {
+      if (!finished.current) void Speech.stop();
+    },
+    [],
+  );
+
+  // Pause the countdown while the app is in the background.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') return;
+      Speech.stop();
+      setStage((current) => (current.status === 'counting' ? { pose: current.pose, status: 'paused' } : current));
+    });
+    return () => subscription.remove();
+  }, []);
 
   // Announce each pose when its countdown starts from the top.
   const pose = stage.pose;
@@ -229,7 +261,8 @@ function Capture({ heightCm, helper, onDone, onCancel }: { heightCm: number; hel
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cameraReady, stage]);
 
-  // After a pose problem, try again on its own after a few seconds.
+  // After a pose problem, try again on its own after a few seconds. Only `fix` stages get here;
+  // anything else (offline, service down, limit reached) waits for the shopper.
   useEffect(() => {
     if (stage.status !== 'fix') return;
     const timer = setTimeout(() => setStage({ pose: stage.pose, status: 'counting', count: 6 }), 6000);
@@ -244,13 +277,14 @@ function Capture({ heightCm, helper, onDone, onCancel }: { heightCm: number; hel
       if (!picture) throw new Error('no picture');
       shot = { uri: picture.uri, width: picture.width, height: picture.height, mimeType: 'image/jpeg' };
     } catch {
-      setStage({ pose: current, status: 'fix', message: "The camera didn't take the photo. Let's try again." });
+      retake(current, "The camera didn't take the photo. Let's try again.");
       return;
     }
     check.mutate(
       { photo: shot, view: current },
       {
         onSuccess: () => {
+          setRetakes(0);
           const next = { ...photos, [current]: shot };
           setPhotos(next);
           if (current === 'front') {
@@ -261,12 +295,35 @@ function Capture({ heightCm, helper, onDone, onCancel }: { heightCm: number; hel
           }
         },
         onError: (problem) => {
-          const message = errorMessage(problem);
-          say(message);
-          setStage({ pose: current, status: 'fix', message });
+          // Only a pose problem is worth an automatic retake.
+          if (isApiError(problem) && problem.code === 'validation') {
+            retake(current, errorMessage(problem));
+            return;
+          }
+          const title = isApiError(problem) && problem.code === 'network' ? 'You’re offline' : 'We couldn’t check the photo';
+          say(title);
+          setStage({ pose: current, status: 'error', title, message: errorMessage(problem) });
         },
       },
     );
+  }
+
+  function retake(current: Pose, message: string) {
+    const count = retakes + 1;
+    setRetakes(count);
+    if (count >= MAX_RETAKES) {
+      const title = 'Still not quite right';
+      say(title);
+      setStage({
+        pose: current,
+        status: 'error',
+        title,
+        message: `${message} Check that only you are in view, in good light, with your whole body inside the frame. Or measure from photos you already have.`,
+      });
+      return;
+    }
+    say(message);
+    setStage({ pose: current, status: 'fix', message });
   }
 
   function measureNow(front: LocalPhoto, side: LocalPhoto) {
@@ -276,6 +333,7 @@ function Capture({ heightCm, helper, onDone, onCancel }: { heightCm: number; hel
       {
         onSuccess: () => {
           track('measurement_completed', { method: 'scan' });
+          finished.current = true;
           say('All done. Here are your sizes.');
           onDone();
         },
@@ -290,7 +348,13 @@ function Capture({ heightCm, helper, onDone, onCancel }: { heightCm: number; hel
   const restart = () => {
     setPhotos({});
     setMeasureError(null);
+    setRetakes(0);
     setStage({ pose: 'front', status: 'counting', count: COUNTDOWN.front });
+  };
+
+  const tryAgain = () => {
+    setRetakes(0);
+    setStage({ pose: stage.pose, status: 'counting', count: 6 });
   };
 
   const paused = stage.status === 'paused';
@@ -304,6 +368,7 @@ function Capture({ heightCm, helper, onDone, onCancel }: { heightCm: number; hel
         style={StyleSheet.absoluteFill}
         facing={facing}
         onCameraReady={() => setCameraReady(true)}
+        onMountError={() => setCameraError(true)}
         accessibilityLabel="Camera preview"
       />
 
@@ -345,7 +410,33 @@ function Capture({ heightCm, helper, onDone, onCancel }: { heightCm: number; hel
       </View>
 
       <View style={[styles.panel, { paddingBottom: insets.bottom + space.md }]} accessibilityLiveRegion="polite">
-        {measuring || measureError ? (
+        {cameraError ? (
+          <View style={styles.flex}>
+            <AppText variant="heading" color={colors.ivory}>
+              The camera didn’t start
+            </AppText>
+            <AppText variant="secondary" color={colors.champagne}>
+              Close any other app using the camera and try again, or measure from photos you already have.
+            </AppText>
+            <View style={styles.panelButtons}>
+              <Button title="Use my photos" size="sm" variant="gold" onPress={() => router.replace('/measure')} fullWidth={false} />
+              <Button title="Back" size="sm" variant="link" tone="bronze" onPress={onCancel} fullWidth={false} />
+            </View>
+          </View>
+        ) : stage.status === 'error' ? (
+          <View style={styles.flex}>
+            <AppText variant="heading" color={colors.ivory}>
+              {stage.title}
+            </AppText>
+            <AppText variant="secondary" color={colors.champagne}>
+              {stage.message}
+            </AppText>
+            <View style={styles.panelButtons}>
+              <Button title="Try again" size="sm" variant="gold" onPress={tryAgain} fullWidth={false} />
+              <Button title="Use my photos" size="sm" variant="link" tone="bronze" onPress={() => router.replace('/measure')} fullWidth={false} />
+            </View>
+          </View>
+        ) : measuring || measureError ? (
           <View style={styles.panelRow}>
             {measureError ? (
               <View style={styles.flex}>

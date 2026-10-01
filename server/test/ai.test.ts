@@ -569,6 +569,17 @@ describe('stylist with OpenRouter', () => {
     assert.match(second.at(-1)!.content, /owned items only/);
   });
 
+  it('gives a follow-up the last outfit to change', async () => {
+    const device = await newDevice();
+    respond('/chat/completions', toolCall('propose_outfit', proposal({})));
+    const json = stylistBody({ text: 'More relaxed', previousItemIds: ['w-nathan', 'w-antwerp'], profile: { occasions: [], styleDirection: 'classic', budgetMinor: null, ownedFirst: true } });
+    const body = await (await call('/v1/stylist', { method: 'POST', device, json })).json();
+    assert.equal(body.status, 'ok');
+    const system = (recorded.filter((r) => r.path === '/chat/completions')[0].body.messages as { content: string }[])[0].content;
+    assert.match(system, /Your last outfit was w-nathan, w-antwerp/);
+    assert.match(system, /prefers their own pieces/);
+  });
+
   it('answers a sparse closet without calling the model', async () => {
     const device = await newDevice();
     const body = await (await call('/v1/stylist', { method: 'POST', device, json: stylistBody({ closet: CLOSET.slice(0, 2) }) })).json();

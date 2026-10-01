@@ -171,9 +171,7 @@ export default function StylistScreen() {
           <View style={styles.assistantRow}>
             <Avatar />
             <View style={[styles.bubble, styles.assistantBubble]}>
-              <AppText variant="body" color={colors.muted}>
-                Putting a look together…
-              </AppText>
+              <Waiting />
             </View>
           </View>
         ) : null}
@@ -189,6 +187,20 @@ export default function StylistScreen() {
         ) : null}
       </View>
     </Screen>
+  );
+}
+
+/** The stylist takes 5–20 seconds; say what it's doing, and that it's still going. */
+function Waiting() {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setSlow(true), 15_000);
+    return () => clearTimeout(timer);
+  }, []);
+  return (
+    <AppText variant="body" color={colors.muted}>
+      {slow ? 'Still working on it. This can take up to a minute.' : 'Looking through your closet…'}
+    </AppText>
   );
 }
 

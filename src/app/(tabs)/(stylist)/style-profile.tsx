@@ -152,7 +152,7 @@ function PreferencesForm({ profile }: { profile: StyleProfile }) {
         </View>
       </Section>
 
-      <Section title="Shopping budget" hint="Optional budget per new outfit">
+      <Section title="Shopping budget" hint="Optional limit for each Nyoni piece the stylist suggests">
         <TextField
           prefix="$"
           value={budget}
@@ -164,7 +164,7 @@ function PreferencesForm({ profile }: { profile: StyleProfile }) {
           placeholder=""
           accessibilityLabel="Shopping budget in dollars"
           error={budgetError}
-          hint={budgetError ? undefined : 'Nyoni suggestions stay within this amount. Leave blank for no limit.'}
+          hint={budgetError ? undefined : 'Each suggested Nyoni piece stays within this amount. Leave blank for no limit.'}
         />
       </Section>
 

@@ -18,7 +18,8 @@ export type AnalyticsEvent =
   | 'outfit_saved'
   | 'stylist_request'
   | 'measurement_completed'
-  | 'measurement_failed';
+  | 'measurement_failed'
+  | 'app_crashed';
 
 type Props = Record<string, string | number | boolean | undefined>;
 

@@ -29,10 +29,13 @@ export const stylistRequestSchema = z.object({
     .max(300),
   ownedOnly: z.boolean(),
   focusItemId: z.string().max(80).optional(),
+  /** The pieces of the last outfit proposed, so follow-ups like "More relaxed" refine it. */
+  previousItemIds: z.array(z.string().max(80)).max(12).optional(),
   profile: z.object({
     occasions: z.array(z.string().max(20)).max(5),
     styleDirection: z.string().max(20),
     budgetMinor: z.number().int().nullable(),
+    ownedFirst: z.boolean().default(true),
   }),
 });
 
@@ -124,6 +127,8 @@ Rules:
   }
 - Style direction: ${input.profile.styleDirection}. Usual occasions: ${input.profile.occasions.join(', ') || 'not set'}.${input.profile.budgetMinor ? ` Budget per add-on: $${(input.profile.budgetMinor / 100).toFixed(0)}.` : ''}
 ${input.focusItemId ? `- Build the outfit around closet item ${input.focusItemId}.` : ''}
+${input.previousItemIds?.length ? `- Your last outfit was ${input.previousItemIds.join(', ')}. A short follow-up (such as "More relaxed" or "Dress it up") changes that outfit: keep what still works and swap the rest.` : ''}
+${!input.ownedOnly && input.profile.ownedFirst ? '- The member prefers their own pieces: suggest an add-on only when the closet has nothing suitable.' : ''}
 Always finish by calling propose_outfit or report_no_match.
 
 Closet (available):

@@ -9,9 +9,14 @@
     "userInterfaceStyle": "light",
     "backgroundColor": "#F4F0E8",
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.nyonicouture.app",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.nyonicouture.app",
       "adaptiveIcon": {
         "backgroundColor": "#0B0B0C",
         "foregroundImage": "./assets/images/android-icon-foreground.png"

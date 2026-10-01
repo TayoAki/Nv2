@@ -250,4 +250,4 @@ export async function checkScanPhotoOnServer(photo: { uri: string; mimeType?: st
   }
 }
 
-export const askStylist = (body: unknown) => asDevice<StylistReply>('/v1/stylist', { method: 'POST', body, timeoutMs: 90_000 });
+export const askStylist = (body: unknown) => asDevice<StylistReply>('/v1/stylist', { method: 'POST', body, timeoutMs: 60_000 });
