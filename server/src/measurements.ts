@@ -9,13 +9,16 @@ import { HttpError } from './errors';
 const MAX_PHOTO_BYTES = 12 * 1024 * 1024;
 const recent = new Map<string, number[]>();
 
-function allow(deviceId: string): boolean {
+function recentAttempts(deviceId: string): number[] {
   const hourAgo = Date.now() - 60 * 60 * 1000;
   const times = (recent.get(deviceId) ?? []).filter((t) => t > hourAgo);
-  if (times.length >= env.measurementsPerHour) return false;
-  times.push(Date.now());
   recent.set(deviceId, times);
-  return true;
+  return times;
+}
+
+/** Only attempts the service actually measured (or explained) count: an outage costs nothing. */
+function countAttempt(deviceId: string) {
+  recentAttempts(deviceId).push(Date.now());
 }
 
 export type MeasurementResult = {
@@ -33,7 +36,9 @@ export async function measureBody(deviceId: string, form: Record<string, unknown
   if (!(front instanceof File) || !(side instanceof File)) throw new HttpError('validation', 'Add a front photo and a side photo.');
   if (front.size > MAX_PHOTO_BYTES || side.size > MAX_PHOTO_BYTES) throw new HttpError('validation', 'Use photos under 12 MB.');
   if (!Number.isFinite(heightCm) || heightCm < 120 || heightCm > 230) throw new HttpError('validation', 'Enter your height between 120 and 230 cm.');
-  if (!allow(deviceId)) throw new HttpError('quota', "You've measured a few times already. Try again in an hour.");
+  if (recentAttempts(deviceId).length >= env.measurementsPerHour) {
+    throw new HttpError('quota', "You've measured a few times already. Try again in an hour.");
+  }
 
   const body = new FormData();
   body.set('front', front, 'front');
@@ -52,6 +57,7 @@ export async function measureBody(deviceId: string, form: Record<string, unknown
     throw new HttpError('unavailable', "Measuring isn't available right now. Please try again in a moment.");
   }
   const result = await response.json().catch(() => null);
+  if (response.ok || response.status === 422) countAttempt(deviceId);
   if (response.status === 422 && result?.error?.message) {
     // The photo can't be measured: the message says what to change ("Hold your arms out…").
     throw new HttpError('validation', String(result.error.message));

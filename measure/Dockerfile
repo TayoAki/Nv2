@@ -15,10 +15,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN mkdir models && curl -fsSL -o models/pose_landmarker_heavy.task \
   https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/latest/pose_landmarker_heavy.task
 
-COPY measure/engine.py measure/detect.py measure/app.py ./
+COPY measure/engine.py measure/detect.py measure/app.py measure/run.py ./
 
 RUN useradd --create-home app
 USER app
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8000
-CMD ["sh", "-c", "uvicorn app:app --host :: --port ${PORT:-8000} --workers 1"]
+CMD ["python", "run.py"]

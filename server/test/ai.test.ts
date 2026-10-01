@@ -639,9 +639,15 @@ describe('body measurements', () => {
     env.measurementsPerHour = limit;
   });
 
-  it('reports unavailable when the service is down', async () => {
+  it('reports unavailable when the service is down, without using up attempts', async () => {
     reply = { status: 500, json: {} };
-    const res = await send(await newDevice());
-    assert.equal(res.status, 503);
+    const device = await newDevice();
+    const limit = env.measurementsPerHour;
+    env.measurementsPerHour = 1;
+    assert.equal((await send(device)).status, 503);
+    assert.equal((await send(device)).status, 503);
+    reply = { status: 200, json: ok };
+    assert.equal((await send(device)).status, 200);
+    env.measurementsPerHour = limit;
   });
 });
