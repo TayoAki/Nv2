@@ -62,6 +62,7 @@ function Overview({ data }: { data: AdminStoreLink }) {
         <AppText variant="heading">Connection</AppText>
         <Row label="Plugin (bridge secret)" ok={configured.bridge} />
         <Row label="WooCommerce webhooks" ok={configured.webhooks} />
+        <Row label="Shown to shoppers (STORE_FEATURES=on)" ok={!!configured.shownToShoppers} okLabel="On" offLabel="Off" />
         <AppText variant="caption" color={colors.muted}>
           Secrets are set in Railway (api service → Variables): NYONI_BRIDGE_SECRET and WOO_WEBHOOK_SECRET. Checkout uses{' '}
           {configured.checkoutMode === 'signed' ? 'the plugin’s signed links' : 'WooCommerce checkout links'}.
@@ -118,13 +119,13 @@ function Overview({ data }: { data: AdminStoreLink }) {
   );
 }
 
-function Row({ label, ok }: { label: string; ok: boolean }) {
+function Row({ label, ok, okLabel = 'Set', offLabel = 'Not set' }: { label: string; ok: boolean; okLabel?: string; offLabel?: string }) {
   return (
     <View style={styles.deletion}>
       <AppText variant="body" style={styles.flex}>
         {label}
       </AppText>
-      <Badge label={ok ? 'Set' : 'Not set'} tone={ok ? 'success' : 'notice'} />
+      <Badge label={ok ? okLabel : offLabel} tone={ok ? 'success' : 'notice'} />
     </View>
   );
 }

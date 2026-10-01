@@ -124,7 +124,7 @@ export function createApp() {
     );
     const row = counts.rows[0];
     return c.json({
-      configured: { bridge: !!env.bridgeSecret, webhooks: !!env.wooWebhookSecret, checkoutMode: env.checkoutMode },
+      configured: { bridge: !!env.bridgeSecret, webhooks: !!env.wooWebhookSecret, checkoutMode: env.checkoutMode, shownToShoppers: env.storeFeatures },
       counts: { products: Number(row.products), variations: Number(row.variations), orders: Number(row.orders), members: Number(row.members) },
       recentEvents: events.rows.map((e) => ({ type: e.type, receivedAt: e.received_at.toISOString() })),
       pendingDeletions: deletions.rows.map((d) => ({ id: d.id, customerId: Number(d.woo_customer_id), requestedAt: d.requested_at.toISOString() })),
@@ -150,7 +150,8 @@ export function createApp() {
    */
   app.get('/v1/store/status', async (c) => {
     const linked = await pool.query<{ count: string }>("select count(*) from woo_products where data->>'status' = 'publish'");
-    return c.json({ signIn: !!env.bridgeSecret, checkout: !!env.bridgeSecret && Number(linked.rows[0].count) > 0, storeUrl: env.storeUrl });
+    const live = env.storeFeatures && !!env.bridgeSecret;
+    return c.json({ signIn: live, checkout: live && Number(linked.rows[0].count) > 0, storeUrl: env.storeUrl });
   });
 
   /* The store link: signed events from the plugin and WooCommerce. */

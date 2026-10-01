@@ -420,7 +420,7 @@ export type AdminReport = {
 
 /** The store link at a glance (staff): what the store has sent, and accounts to erase there. */
 export type AdminStoreLink = {
-  configured: { bridge: boolean; webhooks: boolean; checkoutMode: 'link' | 'signed' };
+  configured: { bridge: boolean; webhooks: boolean; checkoutMode: 'link' | 'signed'; shownToShoppers?: boolean };
   counts: { products: number; variations: number; orders: number; members: number };
   recentEvents: { type: string; receivedAt: string }[];
   /** "Delete my account" requests from the app; staff erase the nyonicouture.com account. */

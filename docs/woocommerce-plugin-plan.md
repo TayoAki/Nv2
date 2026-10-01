@@ -488,7 +488,7 @@ The plugin is in [`wordpress/`](../wordpress/README.md): the install zip and its
    - `STORE_URL`: the staging home URL, for staging only.
 3. Create the five webhooks (4.6), then press **Test connection** and **Send catalogue to app**. **Store admin → Store link** should show the events, and product and size counts that match the store.
 4. Run the staging checks in 4.7: login and registration, a sandbox purchase (classic and block checkout), Club changes, and retries during downtime.
-5. For live: switch `STORE_URL` back to `https://nyonicouture.com`, install on the live store, and run Send catalogue again.
+5. For live: switch `STORE_URL` back to `https://nyonicouture.com`, install on the live store with its own new secret, and run Send catalogue again. Then set **`STORE_FEATURES=on`** in Railway. Until it's on, shoppers don't see "Sign in with Nyoni", store checkout or store stock, so staging tests never reach real users.
 
 ## Sources
 

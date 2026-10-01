@@ -9,6 +9,7 @@ import {
 } from '../../shared/catalog/capsule';
 import type { Product } from '../../src/api/types';
 import { pool } from './db';
+import { env } from './env';
 import { HttpError } from './errors';
 import { applyStoreData } from './woo/catalog';
 
@@ -47,7 +48,8 @@ async function overrides(): Promise<Record<string, InventoryOverride>> {
  * stock and prices wherever the store link has sent them. Images come from the app bundle.
  */
 export async function currentCatalog(): Promise<Product[]> {
-  return applyStoreData(buildCapsuleCatalog(rows, { inventory: await overrides() }));
+  const catalog = buildCapsuleCatalog(rows, { inventory: await overrides() });
+  return env.storeFeatures ? applyStoreData(catalog) : catalog;
 }
 
 export async function currentProduct(productId: string): Promise<Product> {

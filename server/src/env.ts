@@ -58,6 +58,12 @@ export const env = {
   storeUrl: (process.env.STORE_URL || 'https://nyonicouture.com').replace(/\/+$/, ''),
   /** `link`: WooCommerce's built-in checkout links. `signed`: the plugin's /nyoni-checkout/ fallback. */
   checkoutMode: process.env.WOO_CHECKOUT_MODE === 'signed' ? ('signed' as const) : ('link' as const),
+  /*
+   * Shows the store link to shoppers: "Sign in with Nyoni", store checkout and the store's stock
+   * and prices. Off while the plugin is tested on staging, so app users never land on a store
+   * that isn't ready; the plugin's events, webhooks and the admin view work either way.
+   */
+  storeFeatures: process.env.STORE_FEATURES === 'on',
   memberSessionDays: Number(process.env.MEMBER_SESSION_DAYS ?? 90),
   /** Railway's internal Postgres URL has no TLS; public proxies do. */
   databaseSsl: process.env.DATABASE_SSL === 'true',

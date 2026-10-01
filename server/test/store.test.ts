@@ -13,6 +13,7 @@ process.env.NYONI_BRIDGE_SECRET = BRIDGE_SECRET;
 process.env.WOO_WEBHOOK_SECRET = WEBHOOK_SECRET;
 process.env.STORE_URL = 'https://nyonicouture.com';
 process.env.DEVICES_PER_HOUR = '1000';
+process.env.STORE_FEATURES = 'on';
 
 const { pool, migrate } = await import('../src/db');
 const { createApp } = await import('../src/app');
