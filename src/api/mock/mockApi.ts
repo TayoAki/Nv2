@@ -13,6 +13,7 @@ import {
   getRender,
   keepRender,
   measureOnServer,
+  checkScanPhotoOnServer,
   startImport,
   startRender,
   uploadImage,
@@ -1007,6 +1008,20 @@ export const mockApi: NyoniApi = {
     db.bodyMeasurements = result;
     persist();
     return clone(result);
+  },
+
+  async checkScanPhoto({ photo, view }) {
+    await request('ai');
+    // "AI failures" scenario: the front photo fails its pose check, as a real one can.
+    if (scenario() === 'ai_failure' && view === 'front') {
+      throw new ApiError('validation', "Hold your arms out and down in an A shape so there's a gap between your arms and body.");
+    }
+    if (serverAi()) {
+      const status = await aiStatus();
+      if (!status?.features.measurements) throw new ApiError('unavailable', "Scanning isn't available yet. Please try again later.");
+      await checkScanPhotoOnServer(photo, view);
+    }
+    // Demo build: no pose check is available, so every photo is accepted.
   },
 
   async getBodyMeasurements() {

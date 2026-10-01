@@ -14,7 +14,7 @@ import { env } from './env';
 import { errorBody, HttpError } from './errors';
 import { framingOf, normalizeImage } from './images';
 import { createImport, importView } from './ingest';
-import { measureBody } from './measurements';
+import { checkScanPhoto, measureBody } from './measurements';
 import { createRenderBatch, keepRenderBatch, renderBatchView } from './renders';
 import { allowStylistMessage, recommend, stylistRequestSchema } from './stylist';
 
@@ -44,7 +44,7 @@ export function createApp() {
   app.use('/v1/*', (c, next) =>
     bodyLimit({
       // Photos up to 12 MB each (two for measurements); every other request is small JSON.
-      maxSize: c.req.path === '/v1/uploads' ? 12 * 1024 * 1024 : c.req.path === '/v1/measurements' ? 25 * 1024 * 1024 : 256 * 1024,
+      maxSize: c.req.path === '/v1/uploads' ? 12 * 1024 * 1024 : c.req.path === '/v1/measurements' ? 25 * 1024 * 1024 : c.req.path === '/v1/measurements/check' ? 13 * 1024 * 1024 : 256 * 1024,
       onError: (ctx) => ctx.json(errorBody('validation', 'That photo is too large. Use one under 12 MB.'), 413),
     })(c, next),
   );
@@ -165,6 +165,14 @@ export function createApp() {
     if (!form) throw new HttpError('validation', 'Add a front photo and a side photo.');
     c.header('Cache-Control', 'no-store');
     return c.json(await measureBody(c.get('device').id, form));
+  });
+
+  /** One scan photo (multipart: photo, view): is the pose right? The photo isn't kept. */
+  shopper.post('/measurements/check', async (c) => {
+    const form = await c.req.parseBody().catch(() => null);
+    if (!form) throw new HttpError('validation', 'Take the photo again.');
+    c.header('Cache-Control', 'no-store');
+    return c.json(await checkScanPhoto(c.get('device').id, form));
   });
 
   app.route('/v1', shopper);

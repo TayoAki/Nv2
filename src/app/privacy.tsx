@@ -134,7 +134,7 @@ export default function PrivacyScreen() {
                   ? 'Measurements saved. The photos were deleted after measuring.'
                   : 'None saved. Measuring photos are never kept.'
               }
-              onPress={() => router.push('/measure')}
+              onPress={() => router.navigate('/scan')}
               style={styles.row}
             />
           </Card>

@@ -1,9 +1,11 @@
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { useState } from 'react';
+
+import { FitProfile } from '@/components/fit/FitProfile';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { errorMessage, isNetworkError, type BodyMeasurementName, type BodyMeasurements, type LocalPhoto } from '@/api';
+import { errorMessage, isNetworkError, type BodyMeasurements, type LocalPhoto } from '@/api';
 import { Icon } from '@/components/icons/Icon';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { Screen } from '@/components/layout/Screen';
@@ -11,26 +13,19 @@ import { GarmentImage } from '@/components/media/GarmentImage';
 import { AppText } from '@/components/ui/AppText';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { Card, Divider } from '@/components/ui/Card';
+import { Card } from '@/components/ui/Card';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { Banner, StateView } from '@/components/ui/Feedback';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { TextField } from '@/components/ui/TextField';
-import { useBodyMeasurements, useDeleteBodyMeasurements, useMeasureBody } from '@/data/measurements';
+import { useBodyMeasurements, useMeasureBody } from '@/data/measurements';
 import { track } from '@/lib/analytics';
-import { confirm } from '@/lib/confirm';
 import { openBookFitting } from '@/lib/links';
 import { explainDeniedPermission, pickFromLibrary, takePhoto } from '@/lib/photos';
-import { formatLength, MEASUREMENT_LABELS } from '@/lib/sizing';
-import { showToast } from '@/state/toast';
 import { colors, radius, space } from '@/theme';
 
 type Unit = 'cm' | 'in';
 type Pose = 'front' | 'side';
-
-const ORDER: BodyMeasurementName[] = [
-  'chest', 'waist', 'trouserWaist', 'hips', 'neck', 'shoulderWidth', 'sleeve', 'inseam', 'outseam', 'thigh',
-];
 
 /** Measure me — /measure. Two photos and a height give measurements and suggested sizes. */
 export default function MeasureScreen() {
@@ -233,112 +228,25 @@ function PhotoSlot({
 }
 
 function Results({ body, productId, onRetake }: { body: BodyMeasurements; productId?: string; onRetake: () => void }) {
-  const [unit, setUnit] = useState<Unit>('in');
-  const remove = useDeleteBodyMeasurements();
-  const sizes = body.suggestedSizes;
-
-  const onDelete = async () => {
-    const ok = await confirm({
-      title: 'Delete your measurements?',
-      message: 'Size suggestions stop until you measure again.',
-      confirmLabel: 'Delete',
-      destructive: true,
-    });
-    if (ok) remove.mutate(undefined, { onSuccess: () => showToast('Measurements deleted') });
-  };
-
   return (
-    <View style={styles.body}>
-      <View style={styles.heading}>
-        <AppText variant="title" align="center" accessibilityRole="header">
-          Your measurements
-        </AppText>
-        <View style={styles.badges}>
-          <Badge label="Estimated from your photos" tone="ai" icon="sparkle" />
-          {body.isDemo ? <Badge label="Sample values" tone="notice" /> : null}
-        </View>
-      </View>
-
-      {body.isDemo ? (
-        <Banner
-          tone="notice"
-          message="This demo build has no measuring service, so these are sample values for your height, not measured from your photos."
-        />
-      ) : null}
-
-      <Card style={styles.sizes}>
-        <AppText variant="overline" color={colors.bronze}>
-          Suggested sizes
-        </AppText>
-        <SizeRow label="Suit and jacket" value={sizes.jacket} />
-        <SizeRow label="Trousers" value={`${sizes.trouserWaistIn} waist · ${sizes.inseamIn} inseam`} />
-        {sizes.shirtNeckIn ? <SizeRow label="Shirt" value={`${sizes.shirtNeckIn} neck · ${sizes.shirtSleeveIn} sleeve`} /> : null}
-        <AppText variant="caption" color={colors.muted}>
-          You’ll see these marked “For you” on product pages. You always choose the size.
-        </AppText>
-      </Card>
-
-      <View style={styles.section}>
-        <View style={styles.listHeader}>
-          <AppText variant="heading">Body</AppText>
-          <SegmentedControl
-            accessibilityLabel="Measurement units"
-            options={[
-              { value: 'in', label: 'in' },
-              { value: 'cm', label: 'cm' },
-            ]}
-            value={unit}
-            onChange={setUnit}
-            style={styles.unitToggle}
-          />
-        </View>
-        <Card padded={false}>
-          <View style={styles.measureRow}>
-            <AppText variant="body">Height</AppText>
-            <AppText variant="bodyStrong">{formatLength(body.heightCm, unit)}</AppText>
-          </View>
-          {ORDER.filter((name) => body.measurementsCm[name] != null).map((name) => (
-            <View key={name}>
-              <Divider />
-              <View style={styles.measureRow}>
-                <AppText variant="body">{MEASUREMENT_LABELS[name]}</AppText>
-                <AppText variant="bodyStrong">{formatLength(body.measurementsCm[name]!, unit)}</AppText>
-              </View>
-            </View>
-          ))}
-        </Card>
-        <AppText variant="caption" color={colors.muted}>
-          Estimates from photos, not a tailor’s fitting. Confirm with a tape measure or a fitting before alterations.
-          {body.calibrated ? '' : ' Early version: accuracy is still being checked against tape measurements.'}
-        </AppText>
-      </View>
-
-      {productId ? (
-        <Button title="Back to the product" variant="gold" onPress={() => router.dismissTo(`/product/${productId}`)} />
-      ) : (
-        <Button title="Shop in my size" variant="gold" onPress={() => router.dismissTo('/shop')} />
-      )}
-      <Button title="Book a fitting" variant="outline" icon="calendar" onPress={openBookFitting} />
-      <View style={styles.links}>
+    <View style={styles.resultsBody}>
+      <FitProfile body={body}>
+        {productId ? (
+          <Button title="Back to the product" variant="gold" onPress={() => router.dismissTo(`/product/${productId}`)} />
+        ) : (
+          <Button title="Shop in my size" variant="gold" onPress={() => router.dismissTo('/shop')} />
+        )}
+        <Button title="Book a fitting" variant="outline" icon="calendar" onPress={openBookFitting} />
         <Button title="Measure again" variant="link" tone="ink" onPress={onRetake} />
-        <Button title="Delete my measurements" variant="link" tone="muted" onPress={onDelete} loading={remove.isPending} />
-      </View>
-    </View>
-  );
-}
-
-function SizeRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.sizeRow}>
-      <AppText variant="body" color={colors.muted}>
-        {label}
-      </AppText>
-      <AppText variant="heading">{value}</AppText>
+      </FitProfile>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  resultsBody: {
+    paddingTop: space.sm,
+  },
   body: {
     gap: space.lg,
     paddingTop: space.sm,

@@ -12,6 +12,7 @@ import { colors, radius, shadow, space } from '@/theme';
 const TABS: Record<string, { label: string; icon: IconName }> = {
   '(shop)': { label: 'Shop', icon: 'home' },
   '(closet)': { label: 'Closet', icon: 'closet' },
+  '(scan)': { label: 'Scan', icon: 'scan' },
   '(stylist)': { label: 'Stylist', icon: 'stylist' },
   '(bag)': { label: 'Bag', icon: 'bag' },
 };

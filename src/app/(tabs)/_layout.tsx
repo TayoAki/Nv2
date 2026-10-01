@@ -7,7 +7,7 @@ export const unstable_settings = {
   anchor: '(shop)',
 };
 
-/** Bottom tabs: Shop / Closet / Stylist / Bag (plan section 04). */
+/** Bottom tabs: Shop / Closet / Scan / Stylist / Bag. */
 export default function TabsLayout() {
   return (
     <Tabs
@@ -15,6 +15,7 @@ export default function TabsLayout() {
       screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.ivory } }}>
       <Tabs.Screen name="(shop)" options={{ title: 'Shop' }} />
       <Tabs.Screen name="(closet)" options={{ title: 'Closet' }} />
+      <Tabs.Screen name="(scan)" options={{ title: 'Scan' }} />
       <Tabs.Screen name="(stylist)" options={{ title: 'Stylist' }} />
       <Tabs.Screen name="(bag)" options={{ title: 'Bag' }} />
     </Tabs>

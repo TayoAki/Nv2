@@ -639,6 +639,24 @@ describe('body measurements', () => {
     env.measurementsPerHour = limit;
   });
 
+  it('checks a single scan photo and passes on what to fix', async () => {
+    const device = await newDevice();
+    const check = async () => {
+      const form = new FormData();
+      form.set('photo', new Blob([await photo(600, 1200)], { type: 'image/jpeg' }), 'front.jpg');
+      form.set('view', 'front');
+      const res = await app.request('/v1/measurements/check', { method: 'POST', body: form, headers: { authorization: `Device ${device}` } });
+      return { status: res.status, body: await res.json() };
+    };
+    reply = { status: 200, json: { ok: true } };
+    assert.deepEqual(await check(), { status: 200, body: { ok: true } });
+    assert.deepEqual(seen.at(-1)!.fields, ['photo', 'view']);
+    reply = { status: 422, json: { error: { code: 'too_far', message: 'Move a little closer.' } } };
+    const res = await check();
+    assert.equal(res.status, 400);
+    assert.equal(res.body.error.message, 'Move a little closer.');
+  });
+
   it('reports unavailable when the service is down, without using up attempts', async () => {
     reply = { status: 500, json: {} };
     const device = await newDevice();

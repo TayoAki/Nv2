@@ -106,6 +106,19 @@ def test_measures_the_synthetic_figure():
     sizes = result["suggestedSizes"]
     assert sizes["jacket"] == "38S"  # 94.9 cm chest = 37.4 in; 170 cm tall
     assert sizes["inseamIn"] == 28
+    assert sizes["jacketAlternative"] == "36S"  # 37.4 in is within half an inch of the 36/38 line
+
+
+def test_names_the_other_size_when_between_sizes():
+    from engine import suggested_sizes
+
+    near = suggested_sizes({"chest": 47.0 * 2.54, "trouserWaist": 36.0 * 2.54, "inseam": 80, "neck": 40, "sleeve": 60, "shoulderWidth": 46}, 180)
+    assert near["jacket"] in ("46R", "48R")
+    assert near["jacketAlternative"] in ("46R", "48R") and near["jacketAlternative"] != near["jacket"]
+    assert near["trouserWaistAlternative"] is None  # 36 in is a 36
+    clear = suggested_sizes({"chest": 40.1 * 2.54, "trouserWaist": 33.1 * 2.54, "inseam": 80, "neck": 40, "sleeve": 60, "shoulderWidth": 46}, 180)
+    assert clear["jacket"] == "40R" and clear["jacketAlternative"] is None
+    assert clear["trouserWaistIn"] == 34 and clear["trouserWaistAlternative"] == 32
 
 
 def test_rejects_arms_against_the_body():

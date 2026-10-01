@@ -39,6 +39,14 @@
           "cameraPermission": "Nyoni Couture uses the camera when you choose to take a photo for a try-on preview or your closet.",
           "microphonePermission": false
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Nyoni Couture uses the camera for your body scan and when you take a photo for a try-on preview or your closet.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
       ]
     ],
     "experiments": {

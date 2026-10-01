@@ -18,7 +18,7 @@ import { useBodyMeasurements } from '@/data/measurements';
 import { useAddToBag, useProduct } from '@/data/shop';
 import { track } from '@/lib/analytics';
 import { formatMoney } from '@/lib/format';
-import { suggestedCode, suggestedVariant } from '@/lib/sizing';
+import { alternativeCode, suggestedCode, suggestedVariant } from '@/lib/sizing';
 import { openBookFitting, openExternal } from '@/lib/links';
 import { useFavorites } from '@/state/favorites';
 import { showToast } from '@/state/toast';
@@ -316,16 +316,17 @@ function Thumbnails({ product }: { product: Product }) {
 function FitHint({ product, suggestedCode: code, measured }: { product: Product; suggestedCode: string | null; measured: boolean }) {
   const body = useBodyMeasurements();
   const wanted = body.data ? suggestedCode(product, body.data) : null;
+  const between = body.data ? alternativeCode(product, body.data) : null;
   if (!['suits', 'tuxedos', 'jackets', 'waistcoats', 'trousers'].includes(product.category)) return null;
   if (!measured) {
     return (
       <Button
-        title="Find my size from 2 photos"
-        icon="ruler"
+        title="Scan for my size"
+        icon="scan"
         variant="link"
         tone="ink"
         fullWidth={false}
-        onPress={() => router.push({ pathname: '/measure', params: { productId: product.id } })}
+        onPress={() => router.push({ pathname: '/body-scan', params: { productId: product.id } })}
         style={styles.fitLink}
       />
     );
@@ -334,15 +335,15 @@ function FitHint({ product, suggestedCode: code, measured }: { product: Product;
     <View style={styles.fitHint}>
       <AppText variant="secondary" color={colors.muted} style={styles.fitText}>
         {code
-          ? `Suggested for you: ${code}, from your measurements.`
+          ? `Suggested for you: ${code}, from your measurements.${between ? ` You’re between sizes, so ${between} may fit too.` : ''}`
           : `Your measurements suggest ${wanted}, which this style doesn't come in.`}
       </AppText>
       <Button
-        title="Measurements"
+        title="My fit"
         variant="link"
         tone="muted"
         fullWidth={false}
-        onPress={() => router.push({ pathname: '/measure', params: { productId: product.id } })}
+        onPress={() => router.navigate('/scan')}
       />
     </View>
   );

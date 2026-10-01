@@ -166,8 +166,10 @@ export type ServerMeasurements = {
   measurementsCm: Record<string, number>;
   suggestedSizes: {
     jacket: string;
+    jacketAlternative?: string | null;
     jacketChestIn: number;
     trouserWaistIn: number;
+    trouserWaistAlternative?: number | null;
     inseamIn: number;
     shirtNeckIn: number | null;
     shirtSleeveIn: number | null;
@@ -211,6 +213,23 @@ export async function measureOnServer(input: {
     if (!(error instanceof ApiError && error.code === 'unauthorized')) throw error;
     await writeStored(DEVICE_KEY, null);
     return http<ServerMeasurements>('/v1/measurements', { method: 'POST', body: await build(), device: await deviceToken(), timeoutMs: 60_000 });
+  }
+}
+
+/** One guided-scan photo: resolves when the pose is right, rejects with what to fix. */
+export async function checkScanPhotoOnServer(photo: { uri: string; mimeType?: string }, view: 'front' | 'side') {
+  const build = async () => {
+    const form = new FormData();
+    await appendPhoto(form, 'photo', photo.uri, photo.mimeType);
+    form.append('view', view);
+    return form;
+  };
+  try {
+    await http<{ ok: true }>('/v1/measurements/check', { method: 'POST', body: await build(), device: await deviceToken(), timeoutMs: 30_000 });
+  } catch (error) {
+    if (!(error instanceof ApiError && error.code === 'unauthorized')) throw error;
+    await writeStored(DEVICE_KEY, null);
+    await http<{ ok: true }>('/v1/measurements/check', { method: 'POST', body: await build(), device: await deviceToken(), timeoutMs: 30_000 });
   }
 }
 

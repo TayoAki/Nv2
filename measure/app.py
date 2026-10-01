@@ -14,7 +14,7 @@ from fastapi import FastAPI, File, Form, Header, UploadFile
 from fastapi.responses import JSONResponse
 
 from detect import detect, landmarker, load_image
-from engine import MeasureError, measure
+from engine import MeasureError, check_front, check_side, measure
 
 TOKEN = os.environ.get("MEASURE_TOKEN", "")
 MAX_BYTES = 12 * 1024 * 1024
@@ -57,3 +57,28 @@ async def measure_photos(
         del front_bytes, side_bytes
     result.pop("rows", None)
     return result
+
+
+@app.post("/check")
+async def check_photo(
+    photo: UploadFile = File(...),
+    view: str = Form(...),
+    authorization: str = Header(default=""),
+):
+    """One photo during a guided scan: is the pose right? Answers in under a second."""
+    if not TOKEN or not hmac.compare_digest(authorization, f"Bearer {TOKEN}"):
+        return error(401, "unauthorized", "Not allowed.")
+    if view not in ("front", "side"):
+        return error(400, "bad_view", "Say which photo this is.")
+    data = await photo.read(MAX_BYTES + 1)
+    if len(data) > MAX_BYTES:
+        return error(413, "too_large", "Use a photo under 12 MB.")
+    try:
+        pixels = load_image(data)
+        found = detect(pixels)
+        (check_front if view == "front" else check_side)(found, pixels.shape[0])
+    except MeasureError as problem:
+        return error(422, problem.code, problem.message)
+    finally:
+        del data
+    return {"ok": True}

@@ -214,10 +214,10 @@ function MeasurementsSummary() {
       title="Your measurements"
       hint={sizes ? `Suggested suit ${sizes.jacket} · trousers ${sizes.trouserWaistIn} waist` : 'Two photos and your height give your suit size.'}>
       <Button
-        title={sizes ? 'View measurements' : 'Measure me'}
-        icon="ruler"
+        title={sizes ? 'View my fit profile' : 'Scan for my size'}
+        icon="scan"
         variant="outline"
-        onPress={() => router.push('/measure')}
+        onPress={() => router.navigate('/scan')}
       />
     </Section>
   );

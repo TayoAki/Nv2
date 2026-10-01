@@ -25,6 +25,21 @@ export function suggestedCode(product: Product, body: BodyMeasurements): string 
   }
 }
 
+/** The neighbouring size when the shopper is right between two (or null). */
+export function alternativeCode(product: Product, body: BodyMeasurements): string | null {
+  switch (product.category) {
+    case 'suits':
+    case 'tuxedos':
+    case 'jackets':
+    case 'waistcoats':
+      return body.suggestedSizes.jacketAlternative ? String(parseInt(body.suggestedSizes.jacketAlternative, 10)) : null;
+    case 'trousers':
+      return body.suggestedSizes.trouserWaistAlternative ? String(body.suggestedSizes.trouserWaistAlternative) : null;
+    default:
+      return null;
+  }
+}
+
 export const MEASUREMENT_LABELS: Record<BodyMeasurementName, string> = {
   chest: 'Chest',
   waist: 'Waist (natural)',

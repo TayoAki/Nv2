@@ -301,6 +301,9 @@ def suggested_sizes(m: dict[str, float], height_cm: float) -> dict:
     trouser_waist = int(2 * round(waist_in / 2))
     return {
         "jacket": f"{jacket}{length}",
+        # Within half an inch of the line between two sizes: name the other one too.
+        "jacketAlternative": _between(chest_in, jacket, length),
+        "trouserWaistAlternative": _between_number(waist_in, trouser_waist),
         "jacketChestIn": round(chest_in, 1),
         "trouserWaistIn": trouser_waist,
         "inseamIn": round(m["inseam"] / inch),
@@ -308,3 +311,16 @@ def suggested_sizes(m: dict[str, float], height_cm: float) -> dict:
         # Shirt sleeves are measured from the centre back of the neck to the wrist.
         "shirtSleeveIn": round((m["shoulderWidth"] / 2 + m["sleeve"]) / inch),
     }
+
+
+def _between_number(value: float, chosen: int) -> int | None:
+    """The neighbouring even size when `value` sits within 0.5 of the line between them."""
+    lower = chosen - 1 if value < chosen else chosen + 1  # the odd boundary nearest the value
+    if abs(value - lower) >= 0.5:
+        return None
+    return chosen - 2 if value < chosen else chosen + 2
+
+
+def _between(value: float, chosen: int, length: str) -> str | None:
+    other = _between_number(value, chosen)
+    return f"{other}{length}" if other else None

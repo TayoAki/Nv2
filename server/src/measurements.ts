@@ -72,3 +72,44 @@ export async function measureBody(deviceId: string, form: Record<string, unknown
     calibrated: !!result.calibrated,
   };
 }
+
+const checks = new Map<string, number[]>();
+
+/**
+ * One photo during a guided scan. Says whether the pose is right so the app can ask for a
+ * retake straight away; the photo isn't kept. Generous limit: a scan may retake a few times.
+ */
+export async function checkScanPhoto(deviceId: string, form: Record<string, unknown>): Promise<{ ok: true }> {
+  if (!env.measureUrl || !env.measureToken) throw new HttpError('unavailable', "Scanning isn't available yet.");
+  const photo = form.photo;
+  const view = form.view;
+  if (!(photo instanceof File)) throw new HttpError('validation', 'Take the photo again.');
+  if (view !== 'front' && view !== 'side') throw new HttpError('validation', 'Say which photo this is.');
+  if (photo.size > MAX_PHOTO_BYTES) throw new HttpError('validation', 'Use a photo under 12 MB.');
+  const hourAgo = Date.now() - 60 * 60 * 1000;
+  const times = (checks.get(deviceId) ?? []).filter((t) => t > hourAgo);
+  if (times.length >= env.measurementsPerHour * 10) throw new HttpError('quota', 'Too many scan photos. Try again in a little while.');
+
+  const body = new FormData();
+  body.set('photo', photo, view);
+  body.set('view', view);
+  let response: Response;
+  try {
+    response = await fetch(`${env.measureUrl}/check`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${env.measureToken}` },
+      body,
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch {
+    throw new HttpError('unavailable', "Scanning isn't available right now. Please try again in a moment.");
+  }
+  const result = await response.json().catch(() => null);
+  if (response.ok || response.status === 422) {
+    times.push(Date.now());
+    checks.set(deviceId, times);
+  }
+  if (response.status === 422 && result?.error?.message) throw new HttpError('validation', String(result.error.message));
+  if (!response.ok) throw new HttpError('unavailable', "Scanning isn't available right now. Please try again in a moment.");
+  return { ok: true };
+}

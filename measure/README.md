@@ -13,6 +13,8 @@ The tailor's-silhouette method, used by several open-source tools:
 5. **Lengths:** shoulders are measured across the outline at the shoulders. The sleeve runs from the outer shoulder point down the arm. Inseam is crotch to floor; outseam is trouser waist to floor.
 6. **Suggested sizes:** US conventions. Suit size is the chest in inches (even sizes), with length S, R or L from height. Trousers use the waist in inches.
 
+**Endpoints:** `POST /measure` (front, side, heightCm) and `POST /check` (photo, view). The check runs only the photo checks, so the app's guided scan can ask for a retake straight after each shot.
+
 **Photo checks** stop with a message the shopper can act on: no person or more than one person, not full length, standing too far away, photos swapped, arms against the body, legs together.
 
 **Privacy:** photos are processed in memory and never written to disk or logged. Only the numbers are returned.

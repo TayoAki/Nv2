@@ -102,6 +102,8 @@ export interface NyoniApi {
 
   /* Body measurements: POST /measurements (front + side photo, height). Photos aren't kept. */
   measureBody(input: { front: LocalPhoto; side: LocalPhoto; heightCm: number; consentVersion: string }): Promise<BodyMeasurements>;
+  /** One photo during a guided scan: rejects with what to fix when the pose isn't right. */
+  checkScanPhoto(input: { photo: LocalPhoto; view: 'front' | 'side' }): Promise<void>;
   getBodyMeasurements(): Promise<BodyMeasurements | null>;
   deleteBodyMeasurements(): Promise<void>;
 

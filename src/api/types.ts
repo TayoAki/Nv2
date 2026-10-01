@@ -424,8 +424,11 @@ export type BodyMeasurements = {
   suggestedSizes: {
     /** US suit size with length, e.g. "40R". */
     jacket: string;
+    /** Set when the chest is right between two sizes: the other one to try. */
+    jacketAlternative?: string | null;
     jacketChestIn: number;
     trouserWaistIn: number;
+    trouserWaistAlternative?: number | null;
     inseamIn: number;
     shirtNeckIn: number | null;
     shirtSleeveIn: number | null;

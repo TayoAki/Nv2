@@ -64,6 +64,11 @@ const ICONS = {
   package: 'package',
   eye: 'eye',
   undo: 'undo-2',
+  scan: 'scan-line',
+  person: 'person-standing',
+  volume: 'volume-2',
+  volumeOff: 'volume-x',
+  upload: 'upload',
 };
 
 const iconsDir = join(dirname(require.resolve('lucide/package.json')), 'dist/esm/icons');

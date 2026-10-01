@@ -23,6 +23,13 @@ export function useMeasureBody() {
   });
 }
 
+/** One guided-scan photo: succeeds when the pose is right, fails with what to fix. */
+export function useCheckScanPhoto() {
+  return useMutation({
+    mutationFn: (input: { photo: LocalPhoto; view: 'front' | 'side' }) => api.checkScanPhoto(input),
+  });
+}
+
 export function useDeleteBodyMeasurements() {
   const queryClient = useQueryClient();
   return useMutation({
