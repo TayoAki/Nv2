@@ -216,7 +216,7 @@ This is the fastest honest beta. It keeps everything that works and removes what
 - [ ] Test on real iPhones and Android phones once the first builds exist: camera, HEIC photos, permissions.
 
 **Nyoni needs to provide:**
-- [ ] The real booking and contact URLs.
+- [x] Booking URL (Square). [ ] The contact page URL.
 - [x] Privacy policy and terms URLs (linked in the app). **Check that the policy covers the app**: the list is in `docs/store-submission.md`.
 - [ ] Real sizes and stock for every product: in the admin panel now, or through the plugin later.
 - [ ] An Apple Developer account and a Google Play developer account, for test builds.
