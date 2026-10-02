@@ -718,7 +718,8 @@ async function stylistOnServer(
       text: input.text,
       history: db.thread.slice(-12).map((m) => ({ role: m.role, text: m.text.slice(0, 1000) })),
       closet: db.wardrobe
-        .filter((item) => !item.archived && item.ownership === 'owned')
+        // "Owned items only" means the shopper's own clothes, never the example pieces.
+        .filter((item) => !item.archived && item.ownership === 'owned' && !(input.ownedOnly && item.provenance === 'example'))
         .slice(0, 300)
         .map((item) => ({
           id: item.id,

@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
-import { type ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, type ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { errorMessage, isNetworkError, type StylistMessage } from '@/api';
 import { AppHeader } from '@/components/layout/AppHeader';
@@ -13,9 +13,11 @@ import { Banner, StateView } from '@/components/ui/Feedback';
 import { IconButton } from '@/components/ui/IconButton';
 import { GoldSwitch } from '@/components/ui/Toggle';
 import { useEnsureAiConsent } from '@/data/account';
+import { useWardrobe } from '@/data/closet';
 import { useSendStylistMessage, useStylistThread } from '@/data/stylist';
 import { track } from '@/lib/analytics';
 import { timeLabel } from '@/lib/format';
+import { showToast } from '@/state/toast';
 import { colors, fonts, radius, space } from '@/theme';
 
 const STARTERS = [
@@ -31,7 +33,11 @@ export default function StylistScreen() {
   const send = useSendStylistMessage();
   const ensureAiConsent = useEnsureAiConsent();
   const [text, setText] = useState('');
-  const [ownedOnly, setOwnedOnly] = useState(true);
+  const wardrobe = useWardrobe();
+  // "Owned items only" needs clothes of their own: example pieces and an empty closet don't count.
+  const hasOwnPieces = (wardrobe.data ?? []).some((item) => !item.archived && item.ownership === 'owned' && item.provenance !== 'example');
+  const [ownedChoice, setOwnedChoice] = useState(true);
+  const ownedOnly = hasOwnPieces && ownedChoice;
   const [failed, setFailed] = useState<{ text: string; message: string; focusItemId?: string } | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const handledPrompt = useRef<string | null>(null);
@@ -88,10 +94,22 @@ export default function StylistScreen() {
         <Chip label="More relaxed" onPress={() => submit('More relaxed')} disabled={send.isPending} style={styles.followUp} />
         <Chip label="Dress it up" onPress={() => submit('Dress it up')} disabled={send.isPending} style={styles.followUp} />
         <View style={styles.owned}>
-          <AppText variant="secondary" numberOfLines={1}>
-            Owned items only
-          </AppText>
-          <GoldSwitch value={ownedOnly} onValueChange={setOwnedOnly} accessibilityLabel="Owned items only" />
+          {/* Greyed out until the shopper has clothes of their own; tapping the label says why. */}
+          <Pressable
+            disabled={hasOwnPieces}
+            onPress={() => showToast('Add your own clothes in Closet to style with only what you own.')}
+            accessibilityElementsHidden>
+            <AppText variant="secondary" numberOfLines={1} color={hasOwnPieces ? undefined : colors.muted}>
+              Owned items only
+            </AppText>
+          </Pressable>
+          <GoldSwitch
+            value={ownedOnly}
+            onValueChange={setOwnedChoice}
+            disabled={!hasOwnPieces}
+            accessibilityLabel="Owned items only"
+            accessibilityHint={hasOwnPieces ? undefined : 'Add your own clothes in Closet first'}
+          />
         </View>
       </View>
       <View style={styles.composer}>
