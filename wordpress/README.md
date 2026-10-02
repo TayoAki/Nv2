@@ -4,18 +4,25 @@ The plugin that connects nyonicouture.com to the app server. It was built by Nyo
 
 | | |
 | --- | --- |
-| Version | 1.0.1 |
-| Install file | `nyoni-app-bridge-1.0.1.zip`, unchanged from the developer's handoff. SHA-256 `30e6007557abdb1a0dc6ae901f74300b0d375acb68859d6b2def5e73491aa76f` |
-| Source | `nyoni-app-bridge/`, unpacked from the same zip. Its README has the full install guide. |
-| Status | Not installed on the store yet. |
+| Version | 1.0.2 |
+| Install file | `nyoni-app-bridge-1.0.2.zip`. SHA-256 `26c28753350526e1ea706a1d10a61ee4d74d14224daa059da48ec027c7edb2b1` |
+| Source | `nyoni-app-bridge/`. Its README has the full install guide. |
+| Status | 1.0.1 is installed on staging (staging2.nyonicouture.com) and connected. 1.0.2 is ready to upload there. |
+
+**1.0.2** adds one thing to the developer's 1.0.1 (SHA-256 `30e6007557abdb1a0dc6ae901f74300b0d375acb68859d6b2def5e73491aa76f`): a **Create app webhooks** button on WooCommerce → Nyoni App.
+- It creates or updates the five product and order webhooks from plan 4.6, signed with the bridge secret, so `WOO_WEBHOOK_SECRET` is optional.
+- Regenerating the secret re-signs them.
+- Other webhooks on the store are left alone.
+
+The new code is in `includes/class-nab-webhooks.php`, plus the button in `class-nab-settings.php`.
 
 ## Install
 
-Upload the zip in WordPress (Plugins → Add New → Upload Plugin) **on staging first**, then follow plugin plan section 11, "What IT does next".
+Upload the zip in WordPress (Plugins → Add New → Upload Plugin) **on staging first**, then follow plugin plan section 11, "What IT does next". To update an installed copy, upload the new zip and choose **Replace current with uploaded**. Settings and the secret are kept.
 
 The two secrets go only into Railway (api service → Variables):
 - `NYONI_BRIDGE_SECRET`: shown once on WooCommerce → Nyoni App;
-- `WOO_WEBHOOK_SECRET`: the secret typed into the five webhooks.
+- `WOO_WEBHOOK_SECRET`: only needed for webhooks made by hand. The button signs them with the bridge secret.
 
 Never commit them or paste them into chat.
 

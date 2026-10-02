@@ -31,13 +31,16 @@ export function verifyBridgeEvent(rawBody: string, timestamp: string | undefined
   if (!sameBytes(Buffer.from(signature, 'base64'), expected)) throw new HttpError('unauthorized', 'Bad signature.');
 }
 
-/** `X-WC-Webhook-Signature`: base64( HMAC-SHA256( webhook secret, raw body ) ). */
+/**
+ * `X-WC-Webhook-Signature`: base64( HMAC-SHA256( secret, raw body ) ). The plugin's "Create app
+ * webhooks" signs them with the bridge secret; webhooks made by hand use WOO_WEBHOOK_SECRET.
+ */
 export function verifyWebhook(rawBody: string, signature: string | undefined) {
-  if (!env.wooWebhookSecret) throw new HttpError('unavailable', 'The store link isn’t set up yet.');
+  const secrets = [env.wooWebhookSecret, env.bridgeSecret].filter((secret): secret is string => !!secret);
+  if (secrets.length === 0) throw new HttpError('unavailable', 'The store link isn’t set up yet.');
   if (!signature) throw new HttpError('unauthorized', 'Missing signature.');
-  if (!sameBytes(Buffer.from(signature, 'base64'), hmac(env.wooWebhookSecret, rawBody))) {
-    throw new HttpError('unauthorized', 'Bad signature.');
-  }
+  const given = Buffer.from(signature, 'base64');
+  if (!secrets.some((secret) => sameBytes(given, hmac(secret, rawBody)))) throw new HttpError('unauthorized', 'Bad signature.');
 }
 
 export type LoginClaims = {

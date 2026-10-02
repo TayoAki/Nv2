@@ -149,6 +149,10 @@ describe('WooCommerce webhooks', () => {
     assert.equal(res.status, 200);
   });
 
+  it('accepts webhooks the plugin created, signed with the bridge secret', async () => {
+    assert.equal((await webhook('product.deleted', { id: 999999 }, BRIDGE_SECRET)).status, 200);
+  });
+
   it('refuses a bad signature', async () => {
     assert.equal((await webhook('product.updated', { id: 82 }, 'nope')).status, 401);
   });

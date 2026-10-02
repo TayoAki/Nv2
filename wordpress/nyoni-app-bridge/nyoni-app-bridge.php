@@ -3,7 +3,7 @@
  * Plugin Name:       Nyoni App Bridge
  * Plugin URI:        https://nyonicouture.com/
  * Description:       Connects the Nyoni Couture app to this WooCommerce store: signed bridge events (catalogue, orders, membership), a store-login hand-off for "Sign in with Nyoni", and app-checkout order linking. The store only sends data out; nothing calls in.
- * Version:           1.0.1
+ * Version:           1.0.2
  * Requires at least: 6.4
  * Requires PHP:      8.1
  * Author:            Nyoni Couture
@@ -15,7 +15,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'NAB_VERSION', '1.0.1' );
+define( 'NAB_VERSION', '1.0.2' );
 define( 'NAB_FILE', __FILE__ );
 define( 'NAB_DIR', plugin_dir_path( __FILE__ ) );
 define( 'NAB_URL', plugin_dir_url( __FILE__ ) );
@@ -39,6 +39,7 @@ require_once NAB_DIR . 'includes/class-nab-catalog.php';
 require_once NAB_DIR . 'includes/class-nab-login.php';
 require_once NAB_DIR . 'includes/class-nab-checkout.php';
 require_once NAB_DIR . 'includes/class-nab-membership.php';
+require_once NAB_DIR . 'includes/class-nab-webhooks.php';
 require_once NAB_DIR . 'includes/class-nab-settings.php';
 
 /**

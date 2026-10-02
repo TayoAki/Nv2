@@ -20,6 +20,7 @@ class NAB_Settings {
 		add_action( 'admin_post_nab_test', array( __CLASS__, 'handle_test' ) );
 		add_action( 'admin_post_nab_sync', array( __CLASS__, 'handle_sync' ) );
 		add_action( 'admin_post_nab_regen', array( __CLASS__, 'handle_regen' ) );
+		add_action( 'admin_post_nab_webhooks', array( __CLASS__, 'handle_webhooks' ) );
 	}
 
 	public static function menu(): void {
@@ -84,10 +85,23 @@ class NAB_Settings {
 		self::back();
 	}
 
+	public static function handle_webhooks(): void {
+		self::guard();
+		check_admin_referer( 'nab_webhooks' );
+		$result = NAB_Webhooks::ensure();
+		set_transient(
+			'nab_notice_' . get_current_user_id(),
+			array( 'ok', sprintf( /* translators: 1: created count, 2: updated count. */ __( 'App webhooks ready: %1$d created, %2$d updated. They are signed with the bridge secret.', 'nyoni-app-bridge' ), $result['created'], $result['updated'] ) ),
+			60
+		);
+		self::back();
+	}
+
 	public static function handle_regen(): void {
 		self::guard();
 		check_admin_referer( 'nab_regen' );
 		update_option( NAB_OPT_SECRET, bin2hex( random_bytes( 32 ) ), false );
+		NAB_Webhooks::resign(); // The app's webhooks are signed with the same secret.
 		update_option( 'nyoni_app_secret_unseen', get_current_user_id(), false );
 		set_transient(
 			'nab_notice_' . get_current_user_id(),
@@ -168,6 +182,15 @@ class NAB_Settings {
 					<?php submit_button( __( 'Send catalogue to app', 'nyoni-app-bridge' ), 'primary', 'submit', false ); ?>
 				</form>
 			</p>
+
+			<h2 class="title"><?php esc_html_e( 'WooCommerce webhooks', 'nyoni-app-bridge' ); ?></h2>
+			<?php $hooks = NAB_Webhooks::active_count(); ?>
+			<p style="max-width:60em;color:#50575e"><?php echo esc_html( sprintf( /* translators: %d: active webhook count. */ __( '%d of 5 app webhooks are active (products and orders, sent by WooCommerce to the app server). The button creates any that are missing and updates the rest.', 'nyoni-app-bridge' ), $hooks ) ); ?></p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<input type="hidden" name="action" value="nab_webhooks">
+				<?php wp_nonce_field( 'nab_webhooks' ); ?>
+				<?php submit_button( 5 === $hooks ? __( 'Update app webhooks', 'nyoni-app-bridge' ) : __( 'Create app webhooks', 'nyoni-app-bridge' ), 5 === $hooks ? 'secondary' : 'primary', 'submit', false ); ?>
+			</form>
 
 			<?php if ( $progress ) : ?><p aria-live="polite"><?php echo esc_html( sprintf( 'Catalogue: %d products in %d batches; %d accepted, %d pending (%d retrying), %d failed. Refresh to update.', $progress['products'], $progress['batches'], $progress['accepted'], $progress['pending'], $progress['retrying'], $progress['failed'] ) ); ?></p><?php endif; ?>
 
