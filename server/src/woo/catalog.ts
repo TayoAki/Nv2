@@ -62,3 +62,14 @@ export async function applyStoreData(products: Product[]): Promise<Product[]> {
     return match ? withStoreData(p, match) : p;
   });
 }
+
+/** For the log after a catalogue export: how many app products the store's products cover. */
+export async function catalogMatchSummary() {
+  const { currentCatalogWithoutStore } = await import('../catalog');
+  const products = await currentCatalogWithoutStore();
+  const store = await storeProductsByPath(products.map((p) => (p.storeUrl ? permalinkPath(p.storeUrl) : '')).filter(Boolean));
+  const missing = products.filter((p) => !p.storeUrl || !store.has(permalinkPath(p.storeUrl))).map((p) => p.id);
+  const sizes = products.filter((p) => p.storeUrl && store.has(permalinkPath(p.storeUrl)) && withStoreData(p, store.get(permalinkPath(p.storeUrl))!) !== p).length;
+  return `Store catalogue matches ${products.length - missing.length} of ${products.length} app products (${sizes} with store sizes and prices)${missing.length ? `; not found: ${missing.join(', ')}` : ''}`;
+}
+

@@ -47,6 +47,11 @@ async function overrides(): Promise<Record<string, InventoryOverride>> {
  * The live catalog: the capsule export with staff edits applied, then the store's own sizes,
  * stock and prices wherever the store link has sent them. Images come from the app bundle.
  */
+/** The catalog before store data is applied (for matching it against the store). */
+export async function currentCatalogWithoutStore(): Promise<Product[]> {
+  return buildCapsuleCatalog(rows, { inventory: await overrides() });
+}
+
 export async function currentCatalog(): Promise<Product[]> {
   const catalog = buildCapsuleCatalog(rows, { inventory: await overrides() });
   return env.storeFeatures ? applyStoreData(catalog) : catalog;

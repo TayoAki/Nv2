@@ -15,6 +15,7 @@ import {
   saveVariation,
 } from './data';
 import { verifyBridgeEvent, verifyWebhook } from './signing';
+import { catalogMatchSummary } from './catalog';
 
 /**
  * What the store sends: bridge events from the Nyoni App Bridge plugin, and WooCommerce's own
@@ -49,6 +50,8 @@ export function storeRoutes() {
         const products = Array.isArray(data.products) ? data.products : [];
         for (const product of products) await saveProduct(productFrom(product), null);
         reply = { ok: true, saved: products.length, batch: data.batch ?? null, of: data.of ?? null };
+        console.log(`Store catalogue batch ${String(data.batch ?? '?')}/${String(data.of ?? '?')}: ${products.length} products`);
+        if (data.batch !== undefined && data.batch === data.of) console.log(await catalogMatchSummary());
         break;
       }
       case 'customer.orders': {
@@ -88,6 +91,7 @@ export function storeRoutes() {
       throw new HttpError('validation', 'The body isn’t JSON.');
     }
     const [resource, action] = topic.split('.');
+    console.log(`Store webhook ${topic.slice(0, 40)} ${Number(body.id) || ''}`);
     if (resource === 'product') {
       if (action === 'deleted') await deleteProduct(Number(body.id));
       else if (body.type === 'variation' || Number(body.parent_id) > 0) await saveVariation(body);
