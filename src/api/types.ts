@@ -11,7 +11,15 @@ export type Money = { amountMinor: number; currency: CurrencyCode };
 
 export type Occasion = 'wedding' | 'business' | 'black-tie' | 'dinner' | 'everyday';
 
-export type GarmentKind = 'jacket' | 'suit' | 'shirt' | 'trousers' | 'shoes' | 'knitwear' | 'accessory';
+export type GarmentKind =
+  | 'jacket'
+  | 'suit'
+  | 'waistcoat'
+  | 'shirt'
+  | 'trousers'
+  | 'shoes'
+  | 'knitwear'
+  | 'accessory';
 
 /**
  * An image reference. `uri` is a remote or local file URL; `asset` is a bundled image
@@ -23,7 +31,15 @@ export type ColorInfo = { name: string; hex: string };
 
 /* ----------------------------------------------------------------- Catalog (store authoritative) */
 
-export type ProductCategory = 'suits' | 'tuxedos' | 'jackets' | 'shirts' | 'trousers' | 'shoes' | 'accessories';
+export type ProductCategory =
+  | 'suits'
+  | 'tuxedos'
+  | 'jackets'
+  | 'waistcoats'
+  | 'shirts'
+  | 'trousers'
+  | 'shoes'
+  | 'accessories';
 
 export type StockStatus = 'in_stock' | 'low_stock' | 'out_of_stock';
 
@@ -48,6 +64,36 @@ export type TryOnEligibility = {
   reasonIfIneligible?: string;
 };
 
+/** A signed-in store admin (staff). Shoppers never get one. */
+export type AdminSession = { email: string; expiresAt: string };
+
+export type SizeSource = 'store' | 'placeholder' | 'admin';
+
+/** A size as edited in the admin panel; the stock status is derived from the count. */
+export type InventorySize = { label: string; stockCount: number };
+
+export type InventoryUpdate = { price: Money; sizes: InventorySize[] };
+
+/**
+ * One wearable piece. A suit is one product but two or three pieces (jacket, trousers,
+ * waistcoat), each with its own cut-out, so pieces can be styled and rendered separately.
+ */
+export type ProductPiece = {
+  key: string;
+  name: string;
+  kind: GarmentKind;
+  color: ColorInfo;
+  /** Colours measured from the photo, most dominant first; `color.hex` is the first. */
+  swatches: string[];
+  pattern: string;
+  material: string;
+  formality: 'formal' | 'smart-casual' | 'casual';
+  fit: string | null;
+  seasons: string[];
+  /** Cut-out on a transparent background, once the image pass has run. */
+  image?: MediaImage;
+};
+
 export type Product = {
   id: string;
   slug: string;
@@ -66,6 +112,15 @@ export type Product = {
   featured: boolean;
   /** Demo fixture: shows "Illustrative product" and "Sample price" labels. */
   isIllustrative: boolean;
+  /** Pieces the product is made of: one for most products, two or three for suits. */
+  pieces: ProductPiece[];
+  /**
+   * Where the sizes come from: the store export, placeholders made up until the store lists
+   * them, or edits in the admin panel.
+   */
+  sizeSource: SizeSource;
+  /** The product page on nyonicouture.com. */
+  storeUrl?: string;
   /** Set when the price moved since the shopper last saw it. */
   previousPrice?: Money;
   /** Removed from sale (kept so saved looks and outfits can explain what happened). */
@@ -87,6 +142,8 @@ export type PersonPhoto = {
   /** Device-local preview of the private upload. Never logged or sent to analytics. */
   localUri: string;
   consentVersion: string;
+  /** Server copy used for renders (set when the app is connected to the Nyoni server). */
+  serverBlobId?: string;
   createdAt: string;
   expiresAt: string;
 };
@@ -108,7 +165,11 @@ export type TryOnFailureCode =
   | 'multiple_people'
   | 'photo_expired';
 
-export type GarmentRef = { kind: 'product'; productId: string } | { kind: 'closet'; itemId: string };
+export type GarmentRef =
+  | { kind: 'product'; productId: string }
+  | { kind: 'closet'; itemId: string }
+  /** The whole outfit at once: every piece is a reference in one render. */
+  | { kind: 'outfit'; outfitId: string };
 
 export type TryOnJob = {
   id: string;
@@ -136,6 +197,10 @@ export type Look = {
   garmentColor: ColorInfo;
   /** Generated image. Undefined in demo mode, where no provider is connected. */
   resultImage?: MediaImage;
+  /** The server's placeholder render: AI rendering isn't connected yet. */
+  simulated?: boolean;
+  /** Server render batch, kept longer when the look is saved. */
+  serverBatchId?: string;
   originalPhotoUri?: string;
   scopeNote?: string;
   saved: boolean;
@@ -157,6 +222,8 @@ export type BagNotice =
 export type BagLine = {
   id: string;
   productId: string;
+  /** The product page on nyonicouture.com, where the order is placed. */
+  storeUrl?: string;
   variantId: string;
   title: string;
   kind: GarmentKind;
@@ -204,7 +271,14 @@ export type OrderReceipt = {
 
 /* ------------------------------------------------------------------------------------- Closet */
 
-export type WardrobeCategory = 'jackets' | 'shirts' | 'knitwear' | 'trousers' | 'shoes' | 'accessories';
+export type WardrobeCategory =
+  | 'jackets'
+  | 'waistcoats'
+  | 'shirts'
+  | 'knitwear'
+  | 'trousers'
+  | 'shoes'
+  | 'accessories';
 
 export type Availability = 'ready' | 'unavailable';
 
@@ -222,7 +296,12 @@ export type WardrobeItem = {
   favorite: boolean;
   /** "Owned" only for confirmed items; "Ordered" until delivery is confirmed (plan section 12). */
   ownership: 'owned' | 'ordered';
-  provenance: 'photo_import' | 'manual' | 'order' | 'demo';
+  /** 'example': a Nyoni piece shown to guests so they can try the stylist; not theirs. */
+  provenance: 'photo_import' | 'manual' | 'order' | 'demo' | 'example';
+  /** The Nyoni capsule piece this is, when it came from the store (its photo drives renders). */
+  capsuleKey?: string;
+  /** Server copy of the item's cut-out, for renders (set by the photo import pipeline). */
+  cutoutBlobId?: string;
   image?: MediaImage;
   photos: MediaImage[];
   tryOnEligible: boolean;
@@ -243,6 +322,8 @@ export type ImportDraft = {
   suggestion: ImportSuggestion;
   confidence: 'high' | 'low';
   duplicateOfItemId?: string;
+  /** Server cut-out made by the photo import pipeline; used as the render reference. */
+  cutoutBlobId?: string;
   status: 'ready' | 'saved' | 'discarded';
 };
 
@@ -251,6 +332,8 @@ export type WardrobeImport = {
   drafts: ImportDraft[];
   failedPhotoCount: number;
   manual: boolean;
+  /** Drafts came from the server's simulated import (AI isn't connected yet). */
+  simulated?: boolean;
   createdAt: string;
 };
 
@@ -320,6 +403,71 @@ export type StyleProfile = {
   updatedAt: string;
 };
 
+/* ------------------------------------------------------------------------------ Admin reports */
+
+/** A shopper's report about an AI preview, for staff to review (admin panel). */
+export type AdminReport = {
+  id: string;
+  kind: 'preview';
+  reason: string;
+  subject: string | null;
+  status: 'open' | 'reviewed';
+  createdAt: string;
+  reviewedAt: string | null;
+  /** Full URL of the reported image while it's kept for review (7 days). */
+  imageUrl: string | null;
+};
+
+/** The store link at a glance (staff): what the store has sent, and accounts to erase there. */
+export type AdminStoreLink = {
+  configured: { bridge: boolean; webhooks: boolean; checkoutMode: 'link' | 'signed'; shownToShoppers?: boolean };
+  counts: { products: number; variations: number; orders: number; members: number };
+  recentEvents: { type: string; receivedAt: string }[];
+  /** "Delete my account" requests from the app; staff erase the nyonicouture.com account. */
+  pendingDeletions: { id: string; customerId: number; requestedAt: string }[];
+};
+
+/* ------------------------------------------------------------------------- Body measurements */
+
+export type BodyMeasurementName =
+  | 'chest'
+  | 'waist'
+  | 'trouserWaist'
+  | 'hips'
+  | 'neck'
+  | 'thigh'
+  | 'shoulderWidth'
+  | 'sleeve'
+  | 'inseam'
+  | 'outseam';
+
+/**
+ * Estimated from a front and a side photo (the photos are deleted straight after). Kept
+ * separate from try-on photos and stylist personalization, with its own consent.
+ */
+export type BodyMeasurements = {
+  heightCm: number;
+  measurementsCm: Partial<Record<BodyMeasurementName, number>>;
+  suggestedSizes: {
+    /** US suit size with length, e.g. "40R". */
+    jacket: string;
+    /** Set when the chest is right between two sizes: the other one to try. */
+    jacketAlternative?: string | null;
+    jacketChestIn: number;
+    trouserWaistIn: number;
+    trouserWaistAlternative?: number | null;
+    inseamIn: number;
+    shirtNeckIn: number | null;
+    shirtSleeveIn: number | null;
+  };
+  /** False until the method is calibrated against tape measurements. */
+  calibrated: boolean;
+  consentVersion: string;
+  measuredAt: string;
+  /** Sample values from the demo build (no measuring service connected). */
+  isDemo: boolean;
+};
+
 /* ---------------------------------------------------------------------------- Account & privacy */
 
 export type Session =
@@ -333,6 +481,9 @@ export type PrivacyOverview = {
   savedPreviewCount: number;
   closetPhotoCount: number;
   stylistMessageCount: number;
+  hasBodyMeasurements: boolean;
+  /** Permission to send personal data to the third-party AI services (Apple 5.1.2(i)). */
+  aiConsent: boolean;
   reuseTryOnPhoto: boolean;
   accountDeletion: 'none' | 'pending';
 };

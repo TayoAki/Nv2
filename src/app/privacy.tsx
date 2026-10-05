@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { isNetworkError, type PersonPhoto } from '@/api';
+import { errorMessage, isNetworkError, serverUrl, type PersonPhoto } from '@/api';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { Screen } from '@/components/layout/Screen';
 import { AppText } from '@/components/ui/AppText';
@@ -18,23 +18,26 @@ import {
   useDeletePhoto,
   usePrivacyOverview,
   useRequestAccountDeletion,
+  useDeleteAllMyData,
+  useSetAiConsent,
   useSetReuseTryOnPhoto,
 } from '@/data/account';
+import { demoMode } from '@/api/mode';
+import { links, openExternal } from '@/lib/links';
 import { useClearStylistHistory } from '@/data/stylist';
 import { confirm } from '@/lib/confirm';
 import { expiryLabel, pluralize, timeLabel } from '@/lib/format';
 import { showToast } from '@/state/toast';
 import { colors, space } from '@/theme';
 
-/**
- * 18 · Photos and privacy — /privacy. Retention values are the plan's proposed policy
- * (section 09), shown as proposals, not claims about a live service.
- */
+/** 18 · Photos and privacy — /privacy. What's kept, for how long, and the controls. */
 export default function PrivacyScreen() {
   const overview = usePrivacyOverview();
   const setReuse = useSetReuseTryOnPhoto();
   const clearHistory = useClearStylistHistory();
   const requestDeletion = useRequestAccountDeletion();
+  const setAiConsent = useSetAiConsent();
+  const deleteAll = useDeleteAllMyData();
   const [photosOpen, setPhotosOpen] = useState(false);
   const [cleanupRetrying, setCleanupRetrying] = useState(false);
 
@@ -48,6 +51,38 @@ export default function PrivacyScreen() {
       destructive: true,
     });
     if (ok) clearHistory.mutate(undefined, { onSuccess: () => showToast('Stylist history cleared') });
+  };
+
+  const onWithdrawAi = async (allow: boolean) => {
+    if (allow) {
+      setAiConsent.mutate(true);
+      return;
+    }
+    const ok = await confirm({
+      title: 'Turn off AI features?',
+      message: 'Try-on previews, closet photo reading and the AI stylist stop until you allow them again. Nothing more is sent.',
+      confirmLabel: 'Turn off',
+      destructive: true,
+    });
+    if (ok) setAiConsent.mutate(false, { onSuccess: () => showToast('AI features turned off') });
+  };
+
+  const onDeleteAllData = async () => {
+    const ok = await confirm({
+      title: 'Delete all your data?',
+      message:
+        'Your closet, photos, previews, measurements, stylist conversation and saved outfits are deleted from this phone and from the Nyoni server. This cannot be undone.',
+      confirmLabel: 'Delete everything',
+      destructive: true,
+    });
+    if (!ok) return;
+    deleteAll.mutate(undefined, {
+      onSuccess: () => {
+        showToast('Your data was deleted');
+        router.dismissTo('/shop');
+      },
+      onError: (error) => showToast(errorMessage(error), { tone: 'error' }),
+    });
   };
 
   const onDeleteAccount = async () => {
@@ -102,7 +137,7 @@ export default function PrivacyScreen() {
               icon="camera"
               iconBadge
               title="Try-on photos"
-              subtitle={`Proposed policy: removed after 24 hours · ${data.tryOnPhotos.length} stored now`}
+              subtitle={`Removed after 24 hours · ${data.tryOnPhotos.length} stored now`}
               onPress={() => setPhotosOpen(true)}
               style={styles.row}
             />
@@ -111,7 +146,7 @@ export default function PrivacyScreen() {
               icon="image"
               iconBadge
               title="Saved previews"
-              subtitle={`Proposed policy: removed after 30 days · ${data.savedPreviewCount} saved`}
+              subtitle={`Removed 30 days after saving · ${data.savedPreviewCount} saved`}
               onPress={() => router.navigate({ pathname: '/closet/saved', params: { tab: 'previews' } })}
               style={styles.row}
             />
@@ -124,9 +159,33 @@ export default function PrivacyScreen() {
               onPress={() => router.navigate('/closet')}
               style={styles.row}
             />
+            <Divider inset={space.md} />
+            <ListRow
+              icon="ruler"
+              iconBadge
+              title="Body measurements"
+              subtitle={
+                data.hasBodyMeasurements
+                  ? 'Measurements saved. The photos were deleted after measuring.'
+                  : 'None saved. Measuring photos are never kept.'
+              }
+              onPress={() => router.navigate('/scan')}
+              style={styles.row}
+            />
           </Card>
 
           <SectionLabel>Preferences</SectionLabel>
+          {serverUrl ? (
+            <Card>
+              <ToggleRow
+                label="AI features"
+                description="Try-on previews, closet photo reading and the stylist send the photos and messages you choose to OpenRouter, which uses models from OpenAI and Google. Your body scan stays on Nyoni's server."
+                value={data.aiConsent}
+                onValueChange={onWithdrawAi}
+                accessibilityLabel="Allow AI features"
+              />
+            </Card>
+          ) : null}
           <Card>
             <ToggleRow
               label="Reuse my try-on photo"
@@ -150,18 +209,30 @@ export default function PrivacyScreen() {
               style={styles.row}
             />
             <Divider inset={space.md} />
-            <ListRow
-              icon="trash"
-              title="Delete my account"
-              onPress={onDeleteAccount}
-              disabled={data.accountDeletion === 'pending'}
-              style={styles.row}
-            />
+            {demoMode ? (
+              <ListRow
+                icon="trash"
+                title="Delete my account"
+                onPress={onDeleteAccount}
+                disabled={data.accountDeletion === 'pending'}
+                style={styles.row}
+              />
+            ) : (
+              <ListRow
+                icon="trash"
+                title="Delete all my data"
+                subtitle="From this phone and the Nyoni server"
+                onPress={onDeleteAllData}
+                disabled={deleteAll.isPending}
+                style={styles.row}
+              />
+            )}
           </Card>
 
-          <AppText variant="caption" color={colors.muted} align="center">
-            Privacy settings concept. Final policy depends on implementation.
-          </AppText>
+          <View style={styles.legal}>
+            <Button title="Privacy policy" variant="link" tone="ink" accessibilityRole="link" fullWidth={false} onPress={() => openExternal(links.privacyPolicy)} />
+            <Button title="Terms and conditions" variant="link" tone="ink" accessibilityRole="link" fullWidth={false} onPress={() => openExternal(links.terms)} />
+          </View>
         </View>
       )}
 
@@ -247,6 +318,12 @@ function PhotosSheet({
 }
 
 const styles = StyleSheet.create({
+  legal: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: space.md,
+  },
   sections: {
     gap: space.sm,
     marginTop: space.lg,

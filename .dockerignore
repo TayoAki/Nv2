@@ -1,0 +1,11 @@
+# Shared by both Railway images (server/Dockerfile and Dockerfile.web), which build from the
+# repository root. Each Dockerfile copies only what it needs.
+**/node_modules
+.git
+.expo
+dist
+dist-live
+dist-e2e
+web-build
+server/test
+*.log

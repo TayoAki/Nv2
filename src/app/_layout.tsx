@@ -1,16 +1,21 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { DefaultTheme, Stack, ThemeProvider, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
 import { getDb } from '@/api/mock/db';
+import { CrashScreen } from '@/components/layout/CrashScreen';
 import { HeaderMenuSheet } from '@/components/layout/HeaderMenuSheet';
+import { AiConsentSheet } from '@/components/privacy/AiConsentSheet';
 import { ToastHost } from '@/components/layout/ToastHost';
 import { queryClient, wireQueryEnvironment } from '@/data/queryClient';
 import { colors } from '@/theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
+
+/** Any screen that crashes shows a recoverable message instead of a blank app. */
+export const ErrorBoundary = CrashScreen;
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -30,6 +35,8 @@ const navigationTheme = {
 
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
+  // The web admin is a desktop tool, so it gets a wider frame than the phone-width shop.
+  const isAdmin = usePathname().startsWith('/admin');
 
   useEffect(() => {
     wireQueryEnvironment();
@@ -46,7 +53,7 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider value={navigationTheme}>
         <View style={styles.page}>
-          <View style={styles.app}>
+          <View style={[styles.app, isAdmin && styles.adminFrame]}>
             <Stack
               screenOptions={{
                 headerShown: false,
@@ -55,15 +62,26 @@ export default function RootLayout() {
               <Stack.Screen name="(tabs)" />
               {/* Focused steps without the tab bar. */}
               <Stack.Screen name="photo" />
+              <Stack.Screen name="measure" />
+              <Stack.Screen name="body-scan" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
               <Stack.Screen name="closet/import" />
               <Stack.Screen name="privacy" />
               <Stack.Screen name="checkout" options={{ presentation: 'modal' }} />
               <Stack.Screen name="account" options={{ presentation: 'modal' }} />
+              {/* Where nyonicouture.com returns after "Sign in with Nyoni". */}
+              <Stack.Screen name="auth" />
+              {/* Staff tool: sizes, stock and prices until the WooCommerce sync is live. */}
+              <Stack.Screen name="admin/login" />
+              <Stack.Screen name="admin/index" />
+              <Stack.Screen name="admin/[id]" />
+              <Stack.Screen name="admin/reports" />
+              <Stack.Screen name="admin/store" />
             </Stack>
             <ToastHost />
           </View>
         </View>
         <HeaderMenuSheet />
+        <AiConsentSheet />
       </ThemeProvider>
     </QueryClientProvider>
   );
@@ -75,6 +93,9 @@ const styles = StyleSheet.create({
     backgroundColor: Platform.OS === 'web' ? '#E7E1D6' : colors.ivory,
   },
   // On web, keep the phone layout centered instead of stretching across a desktop window.
+  adminFrame: {
+    maxWidth: 880,
+  },
   app: {
     flex: 1,
     width: '100%',

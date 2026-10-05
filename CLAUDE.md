@@ -15,7 +15,7 @@ See README.md for the screen map, demo scenarios and plan coverage.
 
 - Screens read and write data only through the hooks in `src/data` (TanStack Query). Those hooks call the `NyoniApi` interface in `src/api/client.ts`, which is the demo API (`src/api/mock`) until a backend exists.
 - Keep money in integer minor units (`amountMinor`) and display it with `formatMoney`.
-- A new failure or edge state must also be reachable from demo mode: add it to `DEMO_SCENARIOS` (`src/state/devSettings.ts`) and to the mock API.
+- A new failure or edge state must also be reachable from demo mode: add it to `DEMO_SCENARIOS` (`src/state/devSettings.ts`) and to the mock API. The demo tools only show in builds with `EXPO_PUBLIC_DEMO_TOOLS=true`.
 
 ## UI
 

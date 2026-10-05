@@ -3,11 +3,36 @@ import * as Crypto from 'expo-crypto';
 import { useDevSettings } from '@/state/devSettings';
 
 import type { ConfirmDraftInput, NyoniApi, SignInResult, StyleProfilePatch, WardrobeItemPatch } from '../client';
-import { ApiError } from '../errors';
+import {
+  aiStatus,
+  askStylist,
+  blobUri,
+  deviceCredits,
+  deleteServerBlob,
+  getImport,
+  getRender,
+  keepRender,
+  reportRenderOnServer,
+  measureOnServer,
+  deleteDeviceOnServer,
+  checkScanPhotoOnServer,
+  createStoreCheckout,
+  storeCheckoutStatus,
+  startImport,
+  startRender,
+  uploadImage,
+  type RenderBatch,
+  type ServerGarment,
+  type ServerImport,
+} from '../ai';
+import { ApiError, isApiError } from '../errors';
 import type {
+  MediaImage,
   Bag,
   BagLine,
   BagNotice,
+  BodyMeasurements,
+  ColorInfo,
   GarmentKind,
   GarmentRef,
   ImportDraft,
@@ -15,11 +40,14 @@ import type {
   LocalPhoto,
   Look,
   OrderReceipt,
+  Outfit,
+  PersonPhoto,
   PrivacyOverview,
   Product,
   ProductCategory,
   ResolvedOutfit,
   ResolvedOutfitItem,
+  TryOnFailureCode,
   TryOnJob,
   TryOnJobState,
   WardrobeCategory,
@@ -27,9 +55,13 @@ import type {
   WardrobeItem,
 } from '../types';
 
-import { getDb, persist, resetDb, type JobScenario, type MockDb, type StoredJob, type StoredReceipt } from './db';
-import { COLORS } from './fixtures';
-import { recommend } from './stylistEngine';
+import { applyInventory, buildCapsuleCatalog } from '../catalog/capsule';
+import { fetchCatalog, serverUrl } from '../server';
+import { getDb, persist, persistNow, resetDb, type JobScenario, type MockDb, type StoredJob, type StoredReceipt } from './db';
+import { buildWardrobe, COLOR_OPTIONS, COLORS } from './fixtures';
+import { demoMode } from '../mode';
+import { deleteMemberAccount, finishSignIn, getMember, signInWithNyoni, signOutMember, storeStatus } from '../store';
+import { recommend, type StylistResult } from './stylistEngine';
 
 /* ------------------------------------------------------------------------------------ helpers */
 
@@ -52,6 +84,21 @@ const iso = (time = now()) => new Date(time).toISOString();
 const newId = (prefix: string) => `${prefix}-${Crypto.randomUUID().replace(/-/g, '').slice(0, 10)}`;
 const scenario = () => useDevSettings.getState().scenario;
 
+/**
+ * Try-on renders, photo import and the stylist go to the Nyoni server when one is configured.
+ * The demo scenarios (slow, timeout, AI failure, quota…) stay in the app so every edge state
+ * can still be shown on purpose.
+ */
+const serverAi = () => !!serverUrl && scenario() === 'normal';
+
+/**
+ * Nothing personal goes to the third-party AI services without permission (Apple 5.1.2(i)).
+ * The screens ask first; this is the backstop.
+ */
+function requireAiConsent(db: MockDb) {
+  if (!db.aiConsent) throw new ApiError('validation', 'Allow AI features first. You can do this in Photos and privacy.');
+}
+
 /** Deep copy so cached query data never aliases the mutable demo database. */
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -61,11 +108,70 @@ function clone<T>(value: T): T {
 async function request(kind: 'read' | 'write' | 'ai' = 'read'): Promise<MockDb> {
   const current = scenario();
   const base = kind === 'read' ? 250 : kind === 'write' ? 350 : 700;
-  await sleep((current === 'slow' && kind === 'ai' ? base * 3 : base) + Math.random() * 150);
+  // Demo builds simulate a network round trip; beta and store builds answer straight away.
+  if (demoMode) await sleep((current === 'slow' && kind === 'ai' ? base * 3 : base) + Math.random() * 150);
   if (current === 'offline') {
     throw new ApiError('network', "You're offline. Check your connection and try again.");
   }
-  return getDb();
+  const db = await getDb();
+  await syncCatalog(db);
+  return db;
+}
+
+/*
+ * With a server configured, products, sizes, stock and prices come from it; the rest of the
+ * demo backend (bag, try-on, closet, stylist) uses them from here. Refreshed at most every
+ * 30 seconds, and right after a staff edit.
+ */
+const CATALOG_REFRESH_MS = 30_000;
+let catalogFetchedAt = 0;
+let catalogSync: Promise<void> | null = null;
+
+export function invalidateCatalog() {
+  catalogFetchedAt = 0;
+}
+
+async function syncCatalog(db: MockDb) {
+  if (!serverUrl || Date.now() - catalogFetchedAt < CATALOG_REFRESH_MS) return;
+  catalogSync ??= (async () => {
+    try {
+      const products = await fetchCatalog();
+      const previous = new Map(db.products.map((product) => [product.id, product]));
+      db.products = products.map((product) => {
+        const old = previous.get(product.id);
+        if (!old) return product;
+        // Keep "the price has changed" visible on the product page after a staff price edit.
+        if (old.price.amountMinor !== product.price.amountMinor) return { ...product, previousPrice: old.price };
+        return old.previousPrice ? { ...product, previousPrice: old.previousPrice } : product;
+      });
+      catalogFetchedAt = Date.now();
+      persist();
+    } catch {
+      // Server unreachable: keep shopping on the last catalog and try again shortly.
+      catalogFetchedAt = Date.now() - CATALOG_REFRESH_MS + 5_000;
+    } finally {
+      catalogSync = null;
+    }
+  })();
+  await catalogSync;
+}
+
+/*
+ * Demo staff account. Only the in-app demo backend knows it; the live admin signs in against
+ * the app server, and no staff credential ships in the app.
+ */
+const DEMO_STAFF = { email: 'staff@nyonicouture.com', password: 'nyoni-admin' };
+const ADMIN_SESSION_TTL = 12 * 60 * 60 * 1000;
+let adminFailures = 0;
+let adminLockUntil = 0;
+
+function activeAdminSession(db: MockDb) {
+  const session = db.adminSession;
+  return session && Date.parse(session.expiresAt) > now() ? session : null;
+}
+
+function requireAdmin(db: MockDb) {
+  if (!activeAdminSession(db)) throw new ApiError('unauthorized', 'Sign in to the store admin to continue.');
 }
 
 function notFound(message: string): never {
@@ -80,6 +186,7 @@ function hash(text: string): number {
 
 const CATEGORY_KIND: Record<WardrobeCategory, GarmentKind> = {
   jackets: 'jacket',
+  waistcoats: 'waistcoat',
   shirts: 'shirt',
   knitwear: 'knitwear',
   trousers: 'trousers',
@@ -91,6 +198,7 @@ const PRODUCT_TO_WARDROBE: Record<ProductCategory, WardrobeCategory> = {
   suits: 'jackets',
   tuxedos: 'jackets',
   jackets: 'jackets',
+  waistcoats: 'waistcoats',
   shirts: 'shirts',
   trousers: 'trousers',
   shoes: 'shoes',
@@ -98,7 +206,7 @@ const PRODUCT_TO_WARDROBE: Record<ProductCategory, WardrobeCategory> = {
 };
 
 /** Garment categories the try-on provider supports (plan section 07). */
-const TRY_ON_CATEGORIES: WardrobeCategory[] = ['jackets', 'shirts', 'knitwear', 'trousers'];
+const TRY_ON_CATEGORIES: WardrobeCategory[] = ['jackets', 'waistcoats', 'shirts', 'knitwear', 'trousers'];
 
 /* ---------------------------------------------------------------------------------- catalog */
 
@@ -119,7 +227,61 @@ function matchesSearch(product: Product, search: string): boolean {
 
 /* ----------------------------------------------------------------------------------- try-on */
 
+const UNKNOWN_COLOR: ColorInfo = { name: 'Unknown', hex: '#8A8175' };
+
+/** How a closet piece is sent to the renderer: its Nyoni photo, its cut-out, or in words. */
+function itemGarment(item: WardrobeItem): ServerGarment {
+  if (item.capsuleKey) return { source: 'capsule', key: item.capsuleKey };
+  if (item.cutoutBlobId) return { source: 'blob', blobId: item.cutoutBlobId, name: item.name, kind: item.kind };
+  const description = [item.color?.name, item.pattern].filter(Boolean).join(', ');
+  return { source: 'text', name: item.name, kind: item.kind, description: description || undefined };
+}
+
+function productGarment(product: Product): ServerGarment {
+  const key = product.pieces[0]?.key;
+  return key ? { source: 'capsule', key } : { source: 'text', name: product.title, kind: product.kind, description: product.color.name };
+}
+
+/** The outfit's wearable pieces, outer layer first; the renderer takes up to 15. */
+function outfitPieces(db: MockDb, outfit: Outfit) {
+  const pieces: { kind: GarmentKind; color: ColorInfo; garment: ServerGarment }[] = [];
+  for (const ref of outfit.items) {
+    if (ref.kind === 'owned') {
+      const item = db.wardrobe.find((w) => w.id === ref.itemId);
+      if (item && !item.archived && item.availability === 'ready') {
+        pieces.push({ kind: item.kind, color: item.color ?? UNKNOWN_COLOR, garment: itemGarment(item) });
+      }
+    } else {
+      const product = db.products.find((p) => p.id === ref.productId && !p.discontinued);
+      if (product) pieces.push({ kind: product.kind, color: product.color, garment: productGarment(product) });
+    }
+  }
+  return pieces.slice(0, 15);
+}
+
+function serverGarments(db: MockDb, ref: GarmentRef): ServerGarment[] {
+  if (ref.kind === 'product') return [productGarment(findProduct(db, ref.productId))];
+  if (ref.kind === 'closet') {
+    const item = db.wardrobe.find((w) => w.id === ref.itemId) ?? notFound('This item is no longer in your closet.');
+    return [itemGarment(item)];
+  }
+  const outfit = db.outfits.find((o) => o.id === ref.outfitId) ?? notFound('This outfit is no longer available.');
+  return outfitPieces(db, outfit).map((piece) => piece.garment);
+}
+
 function resolveGarment(db: MockDb, ref: GarmentRef) {
+  if (ref.kind === 'outfit') {
+    const outfit = db.outfits.find((o) => o.id === ref.outfitId) ?? notFound('This outfit is no longer available.');
+    const pieces = outfitPieces(db, outfit);
+    return {
+      title: outfit.title,
+      kind: pieces[0]?.kind ?? ('jacket' as GarmentKind),
+      color: pieces[0]?.color ?? UNKNOWN_COLOR,
+      scopeNote: 'The whole outfit, rendered together.',
+      eligible: pieces.length > 0,
+      reason: 'None of this outfit’s pieces are available right now.',
+    };
+  }
   if (ref.kind === 'product') {
     const product = findProduct(db, ref.productId);
     return {
@@ -145,6 +307,8 @@ function resolveGarment(db: MockDb, ref: GarmentRef) {
 
 function computeJobState(job: StoredJob, time: number): { state: TryOnJobState; failureCode?: TryOnJob['failureCode']; slow: boolean } {
   if (job.cancelledAt) return { state: 'cancelled', slow: false };
+  if (job.failureCode) return { state: 'failed', failureCode: job.failureCode, slow: false };
+  if (job.server) return serverJobState(job.server, time - Date.parse(job.createdAt));
   const elapsed = time - Date.parse(job.createdAt);
   const phase = (validating: number, queued: number, processing: number): TryOnJobState | null =>
     elapsed < validating ? 'validating' : elapsed < queued ? 'queued' : elapsed < processing ? 'processing' : null;
@@ -171,6 +335,69 @@ function computeJobState(job: StoredJob, time: number): { state: TryOnJobState; 
   return byScenario[job.scenario]();
 }
 
+const SERVER_FAILURES: Record<string, TryOnFailureCode> = {
+  timeout: 'timeout',
+  photo_expired: 'photo_expired',
+  no_credit: 'service_unavailable',
+  unavailable: 'service_unavailable',
+  rate_limited: 'service_unavailable',
+  upstream: 'service_unavailable',
+};
+
+/** Real states from the server's render queue: no invented progress. */
+function serverJobState(server: NonNullable<StoredJob['server']>, elapsed: number): ReturnType<typeof computeJobState> {
+  // gpt-image-2 takes 30–50 seconds an image; past 90 seconds say it's still going.
+  const slow = elapsed > 90_000;
+  if (server.status === 'running') return { state: server.processing ? 'processing' : 'queued', slow };
+  if (server.resultUrl) return { state: 'succeeded', slow: false };
+  return { state: 'failed', failureCode: SERVER_FAILURES[server.errorCode ?? ''] ?? 'quality', slow: false };
+}
+
+function batchState(batch: RenderBatch): NonNullable<StoredJob['server']> {
+  return {
+    batchId: batch.id,
+    status: batch.status,
+    processing: batch.images.some((image) => image.status === 'running'),
+    resultUrl: batch.images.find((image) => image.url)?.url ?? null,
+    errorCode: batch.images.find((image) => image.errorCode)?.errorCode ?? null,
+    simulated: batch.simulated,
+  };
+}
+
+/** Polls the server for a running render. A lost connection keeps the last known state. */
+async function refreshServerJob(job: StoredJob) {
+  if (!job.server || job.server.status !== 'running' || job.cancelledAt) return;
+  try {
+    job.server = batchState(await getRender(job.server.batchId));
+    persist();
+  } catch (error) {
+    if (isApiError(error) && error.code === 'not_found') {
+      job.server = { ...job.server, status: 'failed', errorCode: 'photo_expired' };
+      persist();
+    } else if (!(isApiError(error) && error.code === 'network')) {
+      throw error;
+    }
+  }
+}
+
+/** Sends the try-on photo to the server once; re-sends it if the server copy has expired. */
+async function renderOnServer(photo: PersonPhoto, garments: ServerGarment[]) {
+  const send = async () => {
+    if (!photo.serverBlobId) {
+      photo.serverBlobId = (await uploadImage(photo.localUri, 'person')).blobId;
+      persist();
+    }
+    return startRender({ personBlobId: photo.serverBlobId, garments });
+  };
+  try {
+    return await send();
+  } catch (error) {
+    if (!(isApiError(error) && error.code === 'validation' && /photo has expired/i.test(error.message))) throw error;
+    photo.serverBlobId = undefined;
+    return send();
+  }
+}
+
 function jobView(db: MockDb, job: StoredJob): TryOnJob {
   const time = now();
   const { state, failureCode, slow } = computeJobState(job, time);
@@ -191,8 +418,15 @@ function jobView(db: MockDb, job: StoredJob): TryOnJob {
       garmentAvailable: true,
       createdAt: iso(time),
       expiresAt: iso(time + UNSAVED_LOOK_RETENTION),
-      // No AI provider is connected in the demo build, so no image is generated.
-      isDemo: true,
+      // Without the server no AI provider is connected, so no image is generated.
+      isDemo: !job.server,
+      ...(job.server?.resultUrl
+        ? {
+            resultImage: { uri: blobUri(job.server.resultUrl), alt: `AI preview of ${job.garmentTitle}` },
+            simulated: job.server.simulated,
+            serverBatchId: job.server.batchId,
+          }
+        : {}),
     };
     db.looks.push(look);
     job.lookId = look.id;
@@ -224,7 +458,9 @@ function lookView(db: MockDb, look: Look): Look {
   const garmentAvailable =
     garment.kind === 'product'
       ? db.products.some((p) => p.id === garment.productId && !p.discontinued)
-      : db.wardrobe.some((w) => w.id === garment.itemId);
+      : garment.kind === 'closet'
+        ? db.wardrobe.some((w) => w.id === garment.itemId)
+        : db.outfits.some((o) => o.id === garment.outfitId);
   return clone({ ...look, status: expired ? 'expired' : 'active', garmentAvailable });
 }
 
@@ -252,8 +488,18 @@ function bagView(db: MockDb): Bag {
   const lines: BagLine[] = [];
   for (const stored of db.bag) {
     const product = db.products.find((p) => p.id === stored.productId);
-    const variant = product?.variants.find((v) => v.id === stored.variantId);
-    if (!product || !variant) continue;
+    if (!product) continue;
+    // A size removed from the store stays in the bag as unavailable, so it never vanishes silently.
+    const variant = product.variants.find((v) => v.id === stored.variantId) ?? {
+      id: stored.variantId,
+      productId: product.id,
+      storeUrl: product.storeUrl,
+      size: { code: '', label: 'Size no longer offered' },
+      color: product.color,
+      price: stored.priceSeen,
+      stock: 'out_of_stock' as const,
+      stockCount: 0,
+    };
 
     const notices: BagNotice[] = [];
     const unavailable = !!product.discontinued || variant.stock === 'out_of_stock';
@@ -371,12 +617,161 @@ const SUGGESTIONS: ImportSuggestion[] = [
   { category: 'shoes', color: COLORS.brown, pattern: 'Solid' },
 ];
 
+const titleCase = (text: string) => text.replace(/\b\w/g, (c) => c.toUpperCase());
+
+/** The review screen's colour closest to the measured hex; the measured hex is kept. */
+function paletteColor(hex: string | undefined, name: string): ColorInfo | null {
+  if (!hex) return COLOR_OPTIONS.find((c) => c.name.toLowerCase() === name.toLowerCase()) ?? null;
+  const rgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const [r, g, b] = rgb(hex);
+  const nearest = COLOR_OPTIONS.reduce(
+    (best, c) => {
+      const [cr, cg, cb] = rgb(c.hex);
+      const d = (r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2;
+      return d < best.d ? { c, d } : best;
+    },
+    { c: COLOR_OPTIONS[0], d: Infinity },
+  ).c;
+  return { name: nearest.name, hex };
+}
+
+/** Text the server compares imports against, to flag pieces already in the closet. */
+const describeItem = (item: WardrobeItem) =>
+  [item.color?.name, item.pattern, item.name, `(${item.category})`].filter(Boolean).join(' ');
+
+const IMPORT_TIMEOUT_MS = 5 * MINUTE;
+
+/** Uploads the photos, then waits for the server's detect → cut-out → colour → duplicate pipeline. */
+async function importOnServer(
+  db: MockDb,
+  photos: LocalPhoto[],
+): Promise<{ drafts: ImportDraft[]; failedPhotoCount: number; simulated: boolean }> {
+  const uploaded: { blobId: string; photo: LocalPhoto }[] = [];
+  let unreadable = 0;
+  for (const photo of photos) {
+    try {
+      uploaded.push({ blobId: (await uploadImage(photo.uri, 'closet')).blobId, photo });
+    } catch (error) {
+      // A photo the server can't read is skipped; losing the connection stops the import.
+      if (isApiError(error) && error.code === 'validation') unreadable += 1;
+      else throw error;
+    }
+  }
+  if (uploaded.length === 0) return { drafts: [], failedPhotoCount: unreadable, simulated: false };
+
+  // Examples aren't the shopper's, so they never count as "already in your closet".
+  const existing = db.wardrobe
+    .filter((item) => !item.archived && item.provenance !== 'example')
+    .map((item) => ({
+      id: item.id,
+      text: describeItem(item),
+      category: item.category,
+      kind: item.kind,
+      hex: item.color && /^#[0-9a-f]{6}$/i.test(item.color.hex) ? item.color.hex : undefined,
+    }));
+  let job: ServerImport = await startImport(uploaded.map((u) => u.blobId), existing.slice(0, 400));
+  const deadline = now() + IMPORT_TIMEOUT_MS;
+  while (job.status === 'queued' || job.status === 'running') {
+    if (now() > deadline) throw new ApiError('unavailable', 'Reading your photos is taking too long. Try again in a moment.');
+    await sleep(1500);
+    job = await getImport(job.id);
+  }
+
+  const drafts: ImportDraft[] = job.drafts.map((draft) => {
+    const source = uploaded[draft.photoIndex]?.photo;
+    const original = source ? [{ uri: source.uri, alt: 'Your garment photo', width: source.width, height: source.height }] : [];
+    return {
+      id: newId('d'),
+      photos: draft.cutoutUrl ? [{ uri: blobUri(draft.cutoutUrl), alt: `Cut-out of ${draft.name}` }, ...original] : original,
+      bestPhotoIndex: 0,
+      suggestion: {
+        // The simulated import can't tell what the piece is: leave the category to the member.
+        category: job.simulated ? null : draft.category,
+        color: paletteColor(draft.hexes[0], draft.colour),
+        pattern: draft.pattern ? titleCase(draft.pattern) : null,
+      },
+      confidence: draft.confidence,
+      duplicateOfItemId: draft.duplicateOfItemId ?? undefined,
+      cutoutBlobId: draft.cutoutBlobId ?? undefined,
+      status: 'ready',
+    };
+  });
+  return { drafts, failedPhotoCount: job.failedPhotoCount + unreadable, simulated: job.simulated };
+}
+
 function findImport(db: MockDb, id: string): WardrobeImport {
   return db.imports.find((imp) => imp.id === id) ?? notFound('This import has expired. Add your photos again.');
 }
 
 function findDraft(imp: WardrobeImport, draftId: string): ImportDraft {
   return imp.drafts.find((d) => d.id === draftId) ?? notFound('This item is no longer in the review.');
+}
+
+/* ---------------------------------------------------------------------------------- stylist */
+
+/** The server's stylist (a model with tools; every proposal is checked there). */
+async function stylistOnServer(
+  db: MockDb,
+  input: { text: string; ownedOnly: boolean; focusItemId?: string; previous?: Outfit },
+): Promise<StylistResult> {
+  const body = {
+      text: input.text,
+      history: db.thread.slice(-12).map((m) => ({ role: m.role, text: m.text.slice(0, 1000) })),
+      closet: db.wardrobe
+        // "Owned items only" means the shopper's own clothes, never the example pieces.
+        .filter((item) => !item.archived && item.ownership === 'owned' && !(input.ownedOnly && item.provenance === 'example'))
+        .slice(0, 300)
+        .map((item) => ({
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          kind: item.kind,
+          colour: item.color?.name ?? null,
+          pattern: item.pattern,
+          available: item.availability === 'ready',
+        })),
+      ownedOnly: input.ownedOnly,
+      // A follow-up keeps styling the same piece as the outfit before it.
+      focusItemId: input.focusItemId ?? input.previous?.focusItemId,
+      previousItemIds: input.previous?.items.flatMap((ref) => (ref.kind === 'owned' ? [ref.itemId] : [])).slice(0, 12),
+      profile: {
+        occasions: db.styleProfile.occasions,
+        styleDirection: db.styleProfile.styleDirection,
+        budgetMinor: db.styleProfile.budget?.amountMinor ?? null,
+        ownedFirst: db.styleProfile.ownedFirst,
+      },
+  };
+  let reply;
+  try {
+    reply = await askStylist(body);
+  } catch (first) {
+    // One quick retry for a model hiccup; not for offline, limits or a request that timed out.
+    if (isApiError(first) && (first.code === 'network' || first.code === 'quota' || first.code === 'validation')) throw first;
+    try {
+      reply = await askStylist(body);
+    } catch (error) {
+      if (isApiError(error) && (error.code === 'network' || error.code === 'quota')) throw error;
+      throw new ApiError('model_failure', 'Your stylist is unavailable right now. Please try again in a moment.');
+    }
+  }
+  if (reply.status !== 'ok') {
+    return { status: reply.status, reply: reply.reply, suggestedProductId: reply.suggestedProductId ?? undefined };
+  }
+  const { outfit } = reply;
+  return {
+    status: 'ok',
+    reply: reply.reply,
+    outfit: {
+      title: outfit.title,
+      occasion: outfit.occasion,
+      explanation: outfit.explanation,
+      items: outfit.itemIds.map((itemId) => ({ kind: 'owned', itemId })),
+      complement: outfit.complementProductId ? { productId: outfit.complementProductId } : null,
+      saved: false,
+      ownedOnly: input.ownedOnly,
+      focusItemId: outfit.focusItemId ?? undefined,
+    },
+  };
 }
 
 /* ---------------------------------------------------------------------------------- outfits */
@@ -414,9 +809,63 @@ function privacyView(db: MockDb): PrivacyOverview {
     savedPreviewCount: db.looks.filter((l) => l.saved && Date.parse(l.expiresAt) > now()).length,
     closetPhotoCount: db.wardrobe.reduce((sum, item) => sum + item.photos.length, 0),
     stylistMessageCount: db.thread.length,
+    hasBodyMeasurements: !!db.bodyMeasurements,
+    aiConsent: !!db.aiConsent,
     reuseTryOnPhoto: db.reuseTryOnPhoto,
     accountDeletion: db.accountDeletion,
   });
+}
+
+/* ------------------------------------------------------------------------ body measurements */
+
+/**
+ * Sample measurements for the demo build, from typical proportions for the height. They're
+ * labelled as samples in the app: nothing is measured without the measuring service.
+ */
+function sampleMeasurements(heightCm: number, consentVersion: string): BodyMeasurements {
+  const r = (ratio: number) => Math.round(heightCm * ratio * 10) / 10;
+  const measurementsCm = {
+    chest: r(0.555),
+    waist: r(0.48),
+    trouserWaist: r(0.5),
+    hips: r(0.55),
+    neck: r(0.215),
+    thigh: r(0.31),
+    shoulderWidth: r(0.255),
+    sleeve: r(0.34),
+    inseam: r(0.45),
+    outseam: r(0.59),
+  };
+  return {
+    heightCm,
+    measurementsCm,
+    suggestedSizes: suggestedFor(measurementsCm, heightCm),
+    calibrated: false,
+    consentVersion,
+    measuredAt: iso(),
+    isDemo: true,
+  };
+}
+
+function suggestedFor(m: Record<string, number>, heightCm: number): BodyMeasurements['suggestedSizes'] {
+  const inch = (cm: number) => cm / 2.54;
+  const even = (n: number) => 2 * Math.round(n / 2);
+  const length = heightCm < 173 ? 'S' : heightCm < 186 ? 'R' : 'L';
+  return {
+    jacket: `${even(inch(m.chest))}${length}`,
+    jacketChestIn: Math.round(inch(m.chest) * 10) / 10,
+    trouserWaistIn: even(inch(m.trouserWaist)),
+    inseamIn: Math.round(inch(m.inseam)),
+    shirtNeckIn: Math.round(inch(m.neck) * 2) / 2,
+    shirtSleeveIn: Math.round(inch(m.shoulderWidth / 2 + m.sleeve)),
+  };
+}
+
+/** Deletes the server copies of try-on photos; a failure is reported as "retrying". */
+async function deleteServerPhotos(photos: PersonPhoto[]) {
+  const ids = photos.flatMap((p) => (p.serverBlobId ? [p.serverBlobId] : []));
+  const results = await Promise.allSettled(ids.map((blobId) => deleteServerBlob(blobId)));
+  return results.some((r) => r.status === 'rejected') ? 'retrying' : 'done';
 }
 
 function providerCleanup(): 'done' | 'retrying' {
@@ -444,6 +893,125 @@ export const mockApi: NyoniApi = {
   async getProduct(id) {
     const db = await request();
     return clone(findProduct(db, id));
+  },
+
+  /* Admin panel: staff only. */
+  async getAdminSession() {
+    const db = await request();
+    return clone(activeAdminSession(db));
+  },
+
+  async adminSignIn(email, password) {
+    const db = await request('write');
+    const lockedFor = adminLockUntil - now();
+    if (lockedFor > 0) {
+      throw new ApiError('unauthorized', `Too many attempts. Try again in ${Math.ceil(lockedFor / 1000)} seconds.`);
+    }
+    const normalized = email.trim().toLowerCase();
+    if (normalized !== DEMO_STAFF.email || password !== DEMO_STAFF.password) {
+      adminFailures += 1;
+      if (adminFailures >= 5) {
+        adminFailures = 0;
+        adminLockUntil = now() + 30_000;
+      }
+      throw new ApiError('unauthorized', "That email and password don't match a staff account.");
+    }
+    adminFailures = 0;
+    db.adminSession = { email: normalized, expiresAt: iso(now() + ADMIN_SESSION_TTL) };
+    await persistNow();
+    return clone(db.adminSession);
+  },
+
+  async adminSignOut() {
+    const db = await request('write');
+    db.adminSession = null;
+    await persistNow();
+  },
+
+  async adminListProducts() {
+    const db = await request();
+    requireAdmin(db);
+    return clone(db.products);
+  },
+
+  async updateInventory(productId, update) {
+    const db = await request('write');
+    requireAdmin(db);
+    const index = db.products.findIndex((p) => p.id === productId);
+    if (index === -1) notFound('This product is no longer in the catalog.');
+    const sizes = update.sizes.map((size) => ({ label: size.label.trim(), stockCount: size.stockCount }));
+    if (sizes.length === 0) throw new ApiError('validation', 'Add at least one size.');
+    if (sizes.some((size) => !size.label)) throw new ApiError('validation', 'Every size needs a label.');
+    const labels = sizes.map((size) => size.label.toLowerCase());
+    if (new Set(labels).size !== labels.length) throw new ApiError('validation', 'Two sizes have the same label.');
+    if (sizes.some((size) => !Number.isInteger(size.stockCount) || size.stockCount < 0 || size.stockCount > 999)) {
+      throw new ApiError('validation', 'Stock must be a whole number from 0 to 999.');
+    }
+    const { amountMinor } = update.price;
+    if (!Number.isInteger(amountMinor) || amountMinor <= 0 || amountMinor > 10_000_000) {
+      throw new ApiError('validation', 'Enter a price between $0.01 and $100,000.');
+    }
+    const current = db.products[index];
+    const override = { price: update.price, sizes, updatedAt: iso() };
+    db.inventory[productId] = override;
+    const next = applyInventory(current, override);
+    if (current.price.amountMinor !== amountMinor) next.previousPrice = current.price;
+    db.products[index] = next;
+    persist();
+    return clone(next);
+  },
+
+  async adminListReports() {
+    const db = await request();
+    requireAdmin(db);
+    return db.looks
+      .filter((look) => look.reported)
+      .map((look) => ({
+        id: look.id,
+        kind: 'preview' as const,
+        reason: 'other',
+        subject: look.garmentTitle,
+        status: 'open' as const,
+        createdAt: look.createdAt,
+        reviewedAt: null,
+        imageUrl: null,
+      }));
+  },
+
+  async adminMarkReportReviewed() {
+    const db = await request('write');
+    requireAdmin(db);
+  },
+
+  /** The demo has no store link: nothing configured, nothing received. */
+  async adminGetStoreLink() {
+    const db = await request();
+    requireAdmin(db);
+    return {
+      configured: { bridge: false, webhooks: false, checkoutMode: 'link' as const },
+      counts: { products: 0, variations: 0, orders: 0, members: 0 },
+      recentEvents: [],
+      pendingDeletions: [],
+    };
+  },
+
+  async adminMarkDeletionDone() {
+    const db = await request('write');
+    requireAdmin(db);
+  },
+
+  async resetInventory(productId) {
+    const db = await request('write');
+    requireAdmin(db);
+    const index = db.products.findIndex((p) => p.id === productId);
+    const base = buildCapsuleCatalog().find((p) => p.id === productId);
+    if (index === -1 || !base) notFound('This product is no longer in the catalog.');
+    const current = db.products[index];
+    delete db.inventory[productId];
+    if (current.price.amountMinor !== base.price.amountMinor) base.previousPrice = current.price;
+    db.products[index] = base;
+    persist();
+    return clone(base);
   },
 
   /* Photos */
@@ -476,12 +1044,72 @@ export const mockApi: NyoniApi = {
   async deletePhoto(id) {
     const db = await request('write');
     cancelJobsForPhotos(db, [id]);
+    const cleanup = await deleteServerPhotos(db.photos.filter((p) => p.id === id));
     db.photos = db.photos.filter((p) => p.id !== id);
     persist();
-    return { providerCleanup: providerCleanup() };
+    return { providerCleanup: cleanup === 'retrying' ? cleanup : providerCleanup() };
+  },
+
+  /* Body measurements */
+  async measureBody({ front, side, heightCm, consentVersion }) {
+    const db = await request('ai');
+    if (!Number.isFinite(heightCm) || heightCm < 120 || heightCm > 230) {
+      throw new ApiError('validation', 'Enter your height between 120 and 230 cm.');
+    }
+    for (const photo of [front, side]) {
+      if (photo.fileSize && photo.fileSize > MAX_UPLOAD_BYTES) {
+        throw new ApiError('validation', 'This photo is larger than 10 MB. Choose a smaller photo.');
+      }
+    }
+    // "AI failures" scenario: the front photo fails the pose check, as a real one can.
+    if (scenario() === 'ai_failure') {
+      throw new ApiError('validation', "Hold your arms out and down in an A shape so there's a gap between your arms and body.");
+    }
+    let result: BodyMeasurements;
+    if (serverAi()) {
+      const status = await aiStatus();
+      if (!status?.features.measurements) throw new ApiError('unavailable', "Measuring isn't available yet. Please try again later.");
+      const measured = await measureOnServer({ front, side, heightCm });
+      result = { ...measured, measurementsCm: measured.measurementsCm, consentVersion, measuredAt: iso(), isDemo: false };
+    } else {
+      result = sampleMeasurements(heightCm, consentVersion);
+    }
+    db.bodyMeasurements = result;
+    persist();
+    return clone(result);
+  },
+
+  async checkScanPhoto({ photo, view }) {
+    await request('ai');
+    // "AI failures" scenario: the front photo fails its pose check, as a real one can.
+    if (scenario() === 'ai_failure' && view === 'front') {
+      throw new ApiError('validation', "Hold your arms out and down in an A shape so there's a gap between your arms and body.");
+    }
+    if (serverAi()) {
+      const status = await aiStatus();
+      if (!status?.features.measurements) throw new ApiError('unavailable', "Scanning isn't available yet. Please try again later.");
+      await checkScanPhotoOnServer(photo, view);
+    }
+    // Demo build: no pose check is available, so every photo is accepted.
+  },
+
+  async getBodyMeasurements() {
+    const db = await request();
+    return clone(db.bodyMeasurements ?? null);
+  },
+
+  async deleteBodyMeasurements() {
+    const db = await request('write');
+    db.bodyMeasurements = null;
+    persist();
   },
 
   /* Try-on */
+  async getPreviewCredits() {
+    await request();
+    return serverAi() ? deviceCredits() : null;
+  },
+
   async createTryOn({ photoId, garment, idempotencyKey }) {
     const db = await request('write');
     // Idempotency: retrying the same request never creates duplicate (billed) work.
@@ -496,7 +1124,22 @@ export const mockApi: NyoniApi = {
       throw new ApiError('validation', resolved.reason ?? "This piece can't be tried on yet.");
     }
     const current = scenario();
+    let server: StoredJob['server'];
+    let failureCode: TryOnFailureCode | undefined;
+    if (serverAi()) {
+      requireAiConsent(db);
+      const photo = activePhotos(db).find((p) => p.id === photoId)!;
+      try {
+        server = batchState(await renderOnServer(photo, serverGarments(db, garment)));
+      } catch (error) {
+        // Out of preview credits or over the hourly limit: the job settles as "limit reached".
+        if (isApiError(error) && error.code === 'quota') failureCode = 'quota_reached';
+        else throw error;
+      }
+    }
     const job: StoredJob = {
+      server,
+      failureCode,
       id: newId('j'),
       photoId,
       garment,
@@ -516,6 +1159,7 @@ export const mockApi: NyoniApi = {
   async getTryOn(id) {
     const db = await request();
     const job = db.jobs.find((j) => j.id === id) ?? notFound('We couldn\'t find this preview.');
+    await refreshServerJob(job);
     return jobView(db, job);
   },
 
@@ -532,8 +1176,9 @@ export const mockApi: NyoniApi = {
   async getActiveTryOns() {
     const db = await request();
     const time = now();
-    return db.jobs
-      .filter((job) => time - Date.parse(job.createdAt) < 60 * MINUTE)
+    const recent = db.jobs.filter((job) => time - Date.parse(job.createdAt) < 60 * MINUTE);
+    await Promise.all(recent.map(refreshServerJob));
+    return recent
       .map((job) => jobView(db, job))
       .filter((job) => !isTerminal(job.state) || job.state === 'succeeded')
       .reverse();
@@ -560,6 +1205,8 @@ export const mockApi: NyoniApi = {
     if (Date.parse(look.expiresAt) < now()) {
       throw new ApiError('expired', 'This preview has expired. Create a new one to save it.');
     }
+    // Saved server renders are kept for 30 days; confirm that before showing "Saved".
+    if (saved && look.serverBatchId) await keepRender(look.serverBatchId);
     look.saved = saved;
     look.expiresAt = iso(
       saved ? now() + SAVED_LOOK_RETENTION : Date.parse(look.createdAt) + UNSAVED_LOOK_RETENTION,
@@ -574,9 +1221,11 @@ export const mockApi: NyoniApi = {
     persist();
   },
 
-  async reportLook(id) {
+  async reportLook(id, reason) {
     const db = await request('write');
     const look = db.looks.find((l) => l.id === id) ?? notFound('This preview was deleted.');
+    // Server previews are reported to the Nyoni team; only then does the app say thanks.
+    if (look.serverBatchId) await reportRenderOnServer(look.serverBatchId, reason, look.garmentTitle);
     look.reported = true;
     persist();
     return lookView(db, look);
@@ -741,6 +1390,111 @@ export const mockApi: NyoniApi = {
     return clone([...db.wardrobe].sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
   },
 
+  async setExampleCloset(enabled) {
+    const db = await request('write');
+    db.wardrobe = db.wardrobe.filter((item) => item.provenance !== 'example');
+    if (enabled) db.wardrobe.push(...buildWardrobe(now(), 'example'));
+    persist();
+    return clone([...db.wardrobe].sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+  },
+
+  async syncPurchases(orders) {
+    const db = await request('write');
+    const time = iso();
+    const keep = new Set<string>();
+    for (const order of orders) {
+      order.items.forEach((line, index) => {
+        const id = `w-order-${order.id}-${index}`;
+        keep.add(id);
+        const product = line.productId ? db.products.find((p) => p.id === line.productId) : undefined;
+        const category = product ? PRODUCT_TO_WARDROBE[product.category] : 'accessories';
+        const ownership = order.status === 'completed' ? 'owned' : 'ordered';
+        const existing = db.wardrobe.find((w) => w.id === id);
+        if (existing) {
+          // The shopper may have renamed or archived it; only the order status moves on.
+          if (existing.ownership !== ownership) Object.assign(existing, { ownership, updatedAt: time });
+          return;
+        }
+        const image: MediaImage | undefined = product?.images[0] ?? (line.image ? { uri: line.image, alt: line.name } : undefined);
+        db.wardrobe.unshift({
+          id,
+          name: product?.title ?? line.name,
+          category,
+          kind: product?.kind ?? CATEGORY_KIND[category],
+          color: product?.color ?? null,
+          pattern: product?.pieces[0] ? product.pieces[0].pattern : null,
+          brand: 'Nyoni Couture',
+          size: line.size,
+          availability: 'ready',
+          archived: false,
+          favorite: false,
+          ownership,
+          provenance: 'order',
+          capsuleKey: product?.pieces[0]?.key,
+          image,
+          photos: image ? [image] : [],
+          tryOnEligible: product?.tryOn.eligible ?? false,
+          createdAt: order.createdAt ?? time,
+          updatedAt: time,
+        });
+      });
+    }
+    // Refunded or cancelled orders no longer come back from the store.
+    db.wardrobe = db.wardrobe.filter((w) => !w.id.startsWith('w-order-') || keep.has(w.id));
+    if (keep.size > 0) db.wardrobe = db.wardrobe.filter((w) => w.provenance !== 'example');
+    persist();
+  },
+
+  async getStoreStatus() {
+    return demoMode ? null : storeStatus();
+  },
+
+  async signInWithNyoni() {
+    return signInWithNyoni();
+  },
+
+  async finishNyoniSignIn(url) {
+    await finishSignIn(url);
+  },
+
+  async getMember() {
+    if (demoMode) return null;
+    const member = await getMember();
+    if (member) await mockApi.syncPurchases(member.orders);
+    return member;
+  },
+
+  async signOutMember() {
+    await signOutMember();
+  },
+
+  async deleteMemberAccount() {
+    await deleteMemberAccount();
+    // Purchases came from the account; the rest of this phone's data stays until "Delete all my data".
+    const db = await request('write');
+    db.wardrobe = db.wardrobe.filter((w) => !w.id.startsWith('w-order-'));
+    await persistNow();
+  },
+
+  async startStoreCheckout() {
+    const db = await request('write');
+    if (db.bag.length === 0) throw new ApiError('validation', 'Your bag is empty.');
+    return createStoreCheckout(db.bag.map((line) => ({ productId: line.productId, variantId: line.variantId, quantity: line.quantity })));
+  },
+
+  async getStoreCheckoutStatus(ref) {
+    const status = await storeCheckoutStatus(ref);
+    if (status.status === 'paid') {
+      // The store has the order; its basket is emptied, so the app's bag is too.
+      const db = await request('write');
+      if (db.bag.length) {
+        db.bag = [];
+        await persistNow();
+      }
+    }
+    return status;
+  },
+
   async getWardrobeItem(id) {
     const db = await request();
     return clone(db.wardrobe.find((w) => w.id === id) ?? notFound('This item is no longer in your closet.'));
@@ -768,6 +1522,9 @@ export const mockApi: NyoniApi = {
 
   async deleteWardrobeItem(id) {
     const db = await request('write');
+    const item = db.wardrobe.find((w) => w.id === id);
+    // Its cut-out on the server goes too, before the app says the photos are removed.
+    if (item?.cutoutBlobId && serverUrl) await deleteServerBlob(item.cutoutBlobId);
     db.wardrobe = db.wardrobe.filter((w) => w.id !== id);
     const affectedOutfitIds = db.outfits
       .filter((o) => o.items.some((ref) => ref.kind === 'owned' && ref.itemId === id))
@@ -782,8 +1539,13 @@ export const mockApi: NyoniApi = {
     const time = iso();
     let drafts: ImportDraft[];
     let failedPhotoCount = 0;
+    let simulated: boolean | undefined;
 
-    if (options.manual) {
+    if (!options.manual && serverAi()) {
+      if (photos.length === 0) throw new ApiError('validation', 'Choose at least one photo.');
+      requireAiConsent(db);
+      ({ drafts, failedPhotoCount, simulated } = await importOnServer(db, photos));
+    } else if (options.manual) {
       drafts = [
         {
           id: newId('d'),
@@ -817,7 +1579,7 @@ export const mockApi: NyoniApi = {
       });
     }
 
-    const imp: WardrobeImport = { id: newId('imp'), drafts, failedPhotoCount, manual: !!options.manual, createdAt: time };
+    const imp: WardrobeImport = { id: newId('imp'), drafts, failedPhotoCount, manual: !!options.manual, simulated, createdAt: time };
     db.imports.push(imp);
     persist();
     return clone(imp);
@@ -860,6 +1622,7 @@ export const mockApi: NyoniApi = {
       provenance: imp.manual ? 'manual' : 'photo_import',
       image: draft.photos[input.bestPhotoIndex] ?? draft.photos[0],
       photos: draft.photos,
+      cutoutBlobId: draft.cutoutBlobId,
       // A closet photo is a thumbnail; it needs an eligible category and a photo to be a try-on reference.
       tryOnEligible: TRY_ON_CATEGORIES.includes(input.category) && draft.photos.length > 0,
       createdAt: time,
@@ -874,7 +1637,10 @@ export const mockApi: NyoniApi = {
   async discardImportDraft(importId, draftId) {
     const db = await request('write');
     const imp = findImport(db, importId);
-    findDraft(imp, draftId).status = 'discarded';
+    const draft = findDraft(imp, draftId);
+    // A skipped piece's cut-out isn't needed on the server.
+    if (draft.cutoutBlobId && serverUrl) await deleteServerBlob(draft.cutoutBlobId).catch(() => undefined);
+    draft.status = 'discarded';
     persist();
     return clone(imp);
   },
@@ -893,15 +1659,25 @@ export const mockApi: NyoniApi = {
       throw new ApiError('model_failure', 'Your stylist is unavailable right now. Please try again in a moment.');
     }
     const lastOutfitId = [...db.thread].reverse().find((m) => m.outfitId)?.outfitId;
-    const result = recommend({
-      text: trimmed,
-      ownedOnly,
-      focusItemId,
-      wardrobe: db.wardrobe,
-      products: db.products,
-      profile: db.styleProfile,
-      previous: db.outfits.find((o) => o.id === lastOutfitId),
-    });
+    const previous = db.outfits.find((o) => o.id === lastOutfitId);
+    const status = serverAi() ? await aiStatus() : null;
+    // Outside demo builds the answer comes from the AI stylist or not at all: no quiet switch
+    // to the rule-based stylist, so testers always know what answered.
+    if (serverAi() && !demoMode && !status?.features.stylist) {
+      throw new ApiError(status ? 'unavailable' : 'network', status ? 'Your stylist is unavailable right now. Please try again in a moment.' : 'We couldn’t reach Nyoni. Check your connection and try again.');
+    }
+    if (status?.features.stylist) requireAiConsent(db);
+    const result = status?.features.stylist
+      ? await stylistOnServer(db, { text: trimmed, ownedOnly, focusItemId, previous })
+      : recommend({
+          text: trimmed,
+          ownedOnly,
+          focusItemId,
+          wardrobe: db.wardrobe,
+          products: db.products,
+          profile: db.styleProfile,
+          previous,
+        });
 
     const time = iso();
     db.thread.push({ id: newId('m'), role: 'user', text: trimmed, createdAt: time });
@@ -1061,6 +1837,21 @@ export const mockApi: NyoniApi = {
     return privacyView(db);
   },
 
+  async setAiConsent(granted, version) {
+    const db = await request('write');
+    db.aiConsent = granted ? { version, grantedAt: iso() } : null;
+    persist();
+    return privacyView(db);
+  },
+
+  async deleteAllMyData() {
+    await request('write');
+    // The server copy first: only report success once the Nyoni server has deleted it.
+    if (serverUrl) await deleteDeviceOnServer();
+    await resetDb(demoMode ? 'empty' : 'guest');
+    invalidateCatalog();
+  },
+
   async setReuseTryOnPhoto(enabled) {
     const db = await request('write');
     db.reuseTryOnPhoto = enabled;
@@ -1074,9 +1865,10 @@ export const mockApi: NyoniApi = {
       db,
       db.photos.map((p) => p.id),
     );
+    const cleanup = await deleteServerPhotos(db.photos);
     db.photos = [];
     persist();
-    return { providerCleanup: providerCleanup() };
+    return { providerCleanup: cleanup === 'retrying' ? cleanup : providerCleanup() };
   },
 
   async requestAccountDeletion() {
@@ -1091,7 +1883,11 @@ export const mockApi: NyoniApi = {
 
 /** Controls for the in-app demo menu. Not part of the production API. */
 export const demoControls = {
-  reset: (seed: 'demo' | 'empty') => resetDb(seed),
+  reset: async (seed: 'demo' | 'empty') => {
+    const db = await resetDb(seed);
+    invalidateCatalog();
+    return db;
+  },
 
   /** Raise the price of the first bag item so the bag shows the "price changed" review. */
   async simulateBagChanges() {

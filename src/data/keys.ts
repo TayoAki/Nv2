@@ -3,6 +3,10 @@ import type { ProductQuery } from '@/api';
 export const keys = {
   products: (query: ProductQuery = {}) => ['products', query] as const,
   product: (id: string) => ['product', id] as const,
+  adminProducts: ['admin', 'products'] as const,
+  adminSession: ['admin', 'session'] as const,
+  adminReports: ['admin', 'reports'] as const,
+  adminStoreLink: ['admin', 'store'] as const,
   bag: ['bag'] as const,
   tryOnRoot: ['try-on'] as const,
   tryOn: (id: string) => ['try-on', 'job', id] as const,
@@ -10,6 +14,7 @@ export const keys = {
   look: (id: string) => ['look', id] as const,
   savedLooks: ['looks', 'saved'] as const,
   photos: ['photos'] as const,
+  previewCredits: ['previewCredits'] as const,
   receipt: (id: string) => ['receipt', id] as const,
   wardrobeRoot: ['wardrobe'] as const,
   wardrobe: ['wardrobe', 'list'] as const,
@@ -21,5 +26,9 @@ export const keys = {
   savedOutfits: ['outfit', 'saved'] as const,
   styleProfile: ['style-profile'] as const,
   session: ['session'] as const,
+  storeStatus: ['store', 'status'] as const,
+  member: ['store', 'member'] as const,
+  storeCheckout: (ref: string) => ['store', 'checkout', ref] as const,
   privacy: ['privacy'] as const,
+  bodyMeasurements: ['body-measurements'] as const,
 };

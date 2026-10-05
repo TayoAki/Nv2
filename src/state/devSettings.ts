@@ -1,6 +1,13 @@
 import { create } from 'zustand';
 
 /**
+ * Demo tools (scenario switcher, sample-data reset, simulated price change) are for
+ * development and automated tests only. Off unless the build sets EXPO_PUBLIC_DEMO_TOOLS=true,
+ * so beta and store builds never show them.
+ */
+export const demoToolsEnabled = process.env.EXPO_PUBLIC_DEMO_TOOLS === 'true';
+
+/**
  * Demo scenarios let reviewers see every required alternative state from the screen index
  * without a backend. Only used by the mock API.
  */

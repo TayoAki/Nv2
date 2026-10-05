@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
-import { type ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, type ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { errorMessage, isNetworkError, type StylistMessage } from '@/api';
 import { AppHeader } from '@/components/layout/AppHeader';
@@ -12,9 +12,12 @@ import { Chip } from '@/components/ui/Chip';
 import { Banner, StateView } from '@/components/ui/Feedback';
 import { IconButton } from '@/components/ui/IconButton';
 import { GoldSwitch } from '@/components/ui/Toggle';
+import { useEnsureAiConsent } from '@/data/account';
+import { useWardrobe } from '@/data/closet';
 import { useSendStylistMessage, useStylistThread } from '@/data/stylist';
 import { track } from '@/lib/analytics';
 import { timeLabel } from '@/lib/format';
+import { showToast } from '@/state/toast';
 import { colors, fonts, radius, space } from '@/theme';
 
 const STARTERS = [
@@ -28,15 +31,25 @@ export default function StylistScreen() {
   const params = useLocalSearchParams<{ prompt?: string; focusItemId?: string }>();
   const thread = useStylistThread();
   const send = useSendStylistMessage();
+  const ensureAiConsent = useEnsureAiConsent();
   const [text, setText] = useState('');
-  const [ownedOnly, setOwnedOnly] = useState(true);
+  const wardrobe = useWardrobe();
+  // "Owned items only" needs clothes of their own: example pieces and an empty closet don't count.
+  const hasOwnPieces = (wardrobe.data ?? []).some((item) => !item.archived && item.ownership === 'owned' && item.provenance !== 'example');
+  const [ownedChoice, setOwnedChoice] = useState(true);
+  const ownedOnly = hasOwnPieces && ownedChoice;
   const [failed, setFailed] = useState<{ text: string; message: string; focusItemId?: string } | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const handledPrompt = useRef<string | null>(null);
 
-  const submit = (message: string, focusItemId?: string) => {
+  const submit = async (message: string, focusItemId?: string) => {
     const trimmed = message.trim();
     if (!trimmed || send.isPending) return;
+    // The stylist is an AI service: ask before the first message leaves the phone.
+    if (!(await ensureAiConsent())) {
+      setText(trimmed);
+      return;
+    }
     setFailed(null);
     setText('');
     track('stylist_request', { ownedOnly, focused: !!focusItemId });
@@ -48,7 +61,7 @@ export default function StylistScreen() {
 
   // "Style this piece" from the closet arrives with a prompt; send it once.
   const sendIncomingPrompt = useEffectEvent((prompt: string, focusItemId?: string) => {
-    submit(prompt, focusItemId);
+    void submit(prompt, focusItemId);
     router.setParams({ prompt: undefined, focusItemId: undefined });
   });
   const threadReady = !!thread.data;
@@ -81,10 +94,22 @@ export default function StylistScreen() {
         <Chip label="More relaxed" onPress={() => submit('More relaxed')} disabled={send.isPending} style={styles.followUp} />
         <Chip label="Dress it up" onPress={() => submit('Dress it up')} disabled={send.isPending} style={styles.followUp} />
         <View style={styles.owned}>
-          <AppText variant="secondary" numberOfLines={1}>
-            Owned items only
-          </AppText>
-          <GoldSwitch value={ownedOnly} onValueChange={setOwnedOnly} accessibilityLabel="Owned items only" />
+          {/* Greyed out until the shopper has clothes of their own; tapping the label says why. */}
+          <Pressable
+            disabled={hasOwnPieces}
+            onPress={() => showToast('Add your own clothes in Closet to style with only what you own.')}
+            accessibilityElementsHidden>
+            <AppText variant="secondary" numberOfLines={1} color={hasOwnPieces ? undefined : colors.muted}>
+              Owned items only
+            </AppText>
+          </Pressable>
+          <GoldSwitch
+            value={ownedOnly}
+            onValueChange={setOwnedChoice}
+            disabled={!hasOwnPieces}
+            accessibilityLabel="Owned items only"
+            accessibilityHint={hasOwnPieces ? undefined : 'Add your own clothes in Closet first'}
+          />
         </View>
       </View>
       <View style={styles.composer}>
@@ -164,9 +189,7 @@ export default function StylistScreen() {
           <View style={styles.assistantRow}>
             <Avatar />
             <View style={[styles.bubble, styles.assistantBubble]}>
-              <AppText variant="body" color={colors.muted}>
-                Putting a look together…
-              </AppText>
+              <Waiting />
             </View>
           </View>
         ) : null}
@@ -182,6 +205,20 @@ export default function StylistScreen() {
         ) : null}
       </View>
     </Screen>
+  );
+}
+
+/** The stylist takes 5–20 seconds; say what it's doing, and that it's still going. */
+function Waiting() {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setSlow(true), 15_000);
+    return () => clearTimeout(timer);
+  }, []);
+  return (
+    <AppText variant="body" color={colors.muted}>
+      {slow ? 'Still working on it. This can take up to a minute.' : 'Looking through your closet…'}
+    </AppText>
   );
 }
 

@@ -14,10 +14,12 @@ import { Divider } from '@/components/ui/Card';
 import { Banner, Skeleton, StateView } from '@/components/ui/Feedback';
 import { IconButton } from '@/components/ui/IconButton';
 import { Sheet } from '@/components/ui/Sheet';
+import { useBodyMeasurements } from '@/data/measurements';
 import { useAddToBag, useProduct } from '@/data/shop';
 import { track } from '@/lib/analytics';
 import { formatMoney } from '@/lib/format';
-import { openBookFitting } from '@/lib/links';
+import { alternativeCode, suggestedCode, suggestedVariant } from '@/lib/sizing';
+import { openBookFitting, openExternal } from '@/lib/links';
 import { useFavorites } from '@/state/favorites';
 import { showToast } from '@/state/toast';
 import { colors, space } from '@/theme';
@@ -97,6 +99,8 @@ export default function ProductScreen() {
 function ProductDetails({ product }: { product: Product }) {
   const [variantId, setVariantId] = useState<string | null>(null);
   const [needsSize, setNeedsSize] = useState(false);
+  const body = useBodyMeasurements();
+  const suggested = suggestedVariant(product, body.data);
   const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const addToBag = useAddToBag();
@@ -144,7 +148,8 @@ function ProductDetails({ product }: { product: Product }) {
         image={product.images[0]}
         kind={product.kind}
         colorHex={product.color.hex}
-        aspectRatio={1.32}
+        aspectRatio={1}
+        contentFit="contain"
         illustrationScale={0.66}
         accessibilityLabel={`${product.title} in ${product.color.name}`}
       />
@@ -172,18 +177,27 @@ function ProductDetails({ product }: { product: Product }) {
       </View>
       <Divider />
 
-      <View style={styles.sizeRow}>
-        <View style={styles.sizeLabel}>
-          <AppText variant="bodyLarge">Size</AppText>
-          <Button title="Guide" variant="link" tone="muted" onPress={() => setSizeGuideOpen(true)} accessibilityLabel="Size guide" />
+      <View style={styles.sizeSection}>
+        <View style={styles.sizeHeader}>
+          <AppText variant="heading" accessibilityRole="header">
+            Size
+          </AppText>
+          <Button title="Size guide" variant="link" tone="muted" fullWidth={false} onPress={() => setSizeGuideOpen(true)} />
         </View>
         <SizeSelector
           variants={product.variants}
           selectedId={variantId}
+          suggestedId={suggested?.id ?? null}
           onSelect={selectVariant}
           highlight={needsSize}
         />
+        <FitHint product={product} suggestedCode={suggested?.size.code ?? null} measured={!!body.data} />
       </View>
+      {product.sizeSource === 'placeholder' ? (
+        <AppText variant="caption" color={colors.muted} style={styles.sampleNote}>
+          Size availability is confirmed on nyonicouture.com when you order.
+        </AppText>
+      ) : null}
 
       {allSoldOut ? (
         <Banner tone="notice" message="Every size is sold out right now. Book a fitting to ask about bespoke options." />
@@ -207,7 +221,7 @@ function ProductDetails({ product }: { product: Product }) {
           </View>
         )}
         <Button
-          title={variant ? 'Add to bag' : 'Choose size'}
+          title={variant ? `Add to bag · ${variant.size.code}` : 'Add to bag'}
           variant="outline"
           loading={addToBag.isPending}
           disabled={allSoldOut}
@@ -223,6 +237,30 @@ function ProductDetails({ product }: { product: Product }) {
         <AppText variant="body" color={colors.text}>
           {product.description}
         </AppText>
+        {product.pieces.length > 1 ? (
+          <AppText variant="secondary" color={colors.muted}>
+            Includes {product.pieces.map((piece) => piece.name).join(', ')}.
+          </AppText>
+        ) : null}
+        {product.pieces[0] ? (
+          <AppText variant="secondary" color={colors.muted}>
+            {[product.pieces[0].material, product.pieces[0].pattern, product.pieces[0].fit && `${product.pieces[0].fit} fit`]
+              .filter((part): part is string => !!part)
+              .map((part) => part[0].toUpperCase() + part.slice(1))
+              .join(' · ')}
+          </AppText>
+        ) : null}
+        {product.storeUrl ? (
+          <Button
+            title="View on nyonicouture.com"
+            variant="link"
+            tone="ink"
+            accessibilityRole="link"
+            fullWidth={false}
+            onPress={() => openExternal(product.storeUrl!)}
+            style={styles.storeLink}
+          />
+        ) : null}
         {product.tryOn.scopeNote ? (
           <AppText variant="secondary" color={colors.muted}>
             Try-on: {product.tryOn.scopeNote}
@@ -274,7 +312,55 @@ function Thumbnails({ product }: { product: Product }) {
   );
 }
 
+/** "Suggested for you" from saved measurements, or a way to get them. Never picks the size. */
+function FitHint({ product, suggestedCode: code, measured }: { product: Product; suggestedCode: string | null; measured: boolean }) {
+  const body = useBodyMeasurements();
+  const wanted = body.data ? suggestedCode(product, body.data) : null;
+  const between = body.data ? alternativeCode(product, body.data) : null;
+  if (!['suits', 'tuxedos', 'jackets', 'waistcoats', 'trousers'].includes(product.category)) return null;
+  if (!measured) {
+    return (
+      <Button
+        title="Scan for my size"
+        icon="scan"
+        variant="link"
+        tone="ink"
+        fullWidth={false}
+        onPress={() => router.push({ pathname: '/body-scan', params: { productId: product.id } })}
+        style={styles.fitLink}
+      />
+    );
+  }
+  return (
+    <View style={styles.fitHint}>
+      <AppText variant="secondary" color={colors.muted} style={styles.fitText}>
+        {code
+          ? `Suggested for you: ${code}, from your measurements.${between ? ` You’re between sizes, so ${between} may fit too.` : ''}`
+          : `Your measurements suggest ${wanted}, which this style doesn't come in.`}
+      </AppText>
+      <Button
+        title="My fit"
+        variant="link"
+        tone="muted"
+        fullWidth={false}
+        onPress={() => router.navigate('/scan')}
+      />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  fitHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+  },
+  fitText: {
+    flex: 1,
+  },
+  fitLink: {
+    alignSelf: 'flex-start',
+  },
   loading: {
     gap: space.md,
     paddingTop: space.md,
@@ -296,15 +382,19 @@ const styles = StyleSheet.create({
     height: 36,
     backgroundColor: colors.hairline,
   },
-  sizeRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: space.md,
+  sampleNote: {
+    marginTop: -space.xs,
   },
-  sizeLabel: {
-    width: 52,
-    minHeight: 48,
-    justifyContent: 'center',
+  storeLink: {
+    alignSelf: 'flex-start',
+  },
+  sizeSection: {
+    gap: space.sm,
+  },
+  sizeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   actions: {
     gap: space.sm,

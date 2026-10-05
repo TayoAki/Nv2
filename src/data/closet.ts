@@ -26,6 +26,19 @@ function useInvalidateCloset() {
   };
 }
 
+/** Guests: remove the example closet, or bring it back. */
+export function useSetExampleCloset() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (enabled: boolean) => api.setExampleCloset(enabled),
+    onSuccess: (items) => {
+      queryClient.setQueryData(keys.wardrobe, items);
+      queryClient.invalidateQueries({ queryKey: keys.wardrobeRoot });
+      queryClient.invalidateQueries({ queryKey: keys.outfitRoot });
+    },
+  });
+}
+
 export function useUpdateWardrobeItem() {
   const queryClient = useQueryClient();
   const invalidate = useInvalidateCloset();

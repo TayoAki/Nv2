@@ -10,7 +10,7 @@ import { GarmentImage } from '@/components/media/GarmentImage';
 import { AppText } from '@/components/ui/AppText';
 import { Button } from '@/components/ui/Button';
 import { ProgressRing, StateView } from '@/components/ui/Feedback';
-import { usePhotos, useCancelTryOn, useTryOnJob } from '@/data/tryOn';
+import { photoParamsFor, usePhotos, useCancelTryOn, useTryOnJob } from '@/data/tryOn';
 import { track } from '@/lib/analytics';
 import { confirm } from '@/lib/confirm';
 import { useTryOnSession } from '@/state/tryOnSession';
@@ -72,7 +72,7 @@ export default function JobScreen() {
   const retryPhoto = () =>
     router.push({
       pathname: '/photo',
-      params: job.garment.kind === 'product' ? { productId: job.garment.productId } : { closetItemId: job.garment.itemId },
+      params: photoParamsFor(job.garment),
     });
 
   const onCancel = async () => {
@@ -174,6 +174,12 @@ function describe(job: TryOnJob): { title: string; message: string; retry?: stri
           title: 'Preview limit reached',
           message:
             "You've reached the preview limit for now. Previews are limited to keep them fair for everyone. You can keep shopping and try again later.",
+        };
+      }
+      if (job.failureCode === 'service_unavailable') {
+        return {
+          title: 'Previews are paused',
+          message: "Previews aren't available right now. Your photo is fine; please try again later.",
         };
       }
       if (job.failureCode === 'timeout') {

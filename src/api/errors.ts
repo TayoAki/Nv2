@@ -7,6 +7,7 @@ export type ApiErrorCode =
   | 'quota' // fair-use allowance reached
   | 'model_failure' // AI stylist or recognition unavailable
   | 'unavailable' // service outage
+  | 'unauthorized' // staff sign-in required or expired
   | 'server';
 
 export class ApiError extends Error {

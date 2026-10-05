@@ -8,16 +8,18 @@ type SwitchProps = {
   value: boolean;
   onValueChange: (value: boolean) => void;
   accessibilityLabel: string;
+  accessibilityHint?: string;
   disabled?: boolean;
 };
 
-export function GoldSwitch({ value, onValueChange, accessibilityLabel, disabled }: SwitchProps) {
+export function GoldSwitch({ value, onValueChange, accessibilityLabel, accessibilityHint, disabled }: SwitchProps) {
   return (
     <Switch
       value={value}
       onValueChange={onValueChange}
       disabled={disabled}
       accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
       trackColor={{ false: '#D3CCC0', true: colors.champagne }}
       thumbColor={Platform.OS === 'android' ? colors.white : undefined}
       ios_backgroundColor="#D3CCC0"

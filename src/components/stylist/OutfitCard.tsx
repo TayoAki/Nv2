@@ -27,6 +27,7 @@ export function OutfitCard({ outfitId }: { outfitId: string }) {
   }
 
   const allOwned = outfit.resolvedItems.every((r) => r.ref.kind === 'owned' && r.status !== 'missing');
+  const fromExamples = outfit.resolvedItems.some((r) => 'item' in r && r.item.provenance === 'example');
   const missing = outfit.resolvedItems.some((r) => r.status !== 'ok');
 
   return (
@@ -37,7 +38,11 @@ export function OutfitCard({ outfitId }: { outfitId: string }) {
         accessibilityLabel={`${outfit.title}. ${outfit.explanation} Open outfit`}
         style={({ pressed }) => [pressed && styles.pressed]}>
         <OutfitCollage pieces={outfitPieces(outfit)} aspectRatio={1.1}>
-          <Badge label={allOwned ? 'All from your closet' : 'Includes changes'} tone="overlay" style={styles.badge} />
+          <Badge
+            label={fromExamples ? 'From the example closet' : allOwned ? 'All from your closet' : 'Includes changes'}
+            tone="overlay"
+            style={styles.badge}
+          />
         </OutfitCollage>
       </Pressable>
       <View style={styles.reason}>

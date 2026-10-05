@@ -32,7 +32,8 @@ export function QuantityStepper({ value, onChange, min = 1, max = 10, disabled, 
       <Pressable
         onPress={() => onChange(value - 1)}
         disabled={!canDecrease}
-        accessibilityLabel="Decrease quantity"
+        accessibilityRole="button"
+        accessibilityLabel={itemName ? `Decrease quantity of ${itemName}` : 'Decrease quantity'}
         style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
         <Icon name="minus" size={20} color={canDecrease ? colors.ink : colors.disabledText} />
       </Pressable>
@@ -42,7 +43,8 @@ export function QuantityStepper({ value, onChange, min = 1, max = 10, disabled, 
       <Pressable
         onPress={() => onChange(value + 1)}
         disabled={!canIncrease}
-        accessibilityLabel="Increase quantity"
+        accessibilityRole="button"
+        accessibilityLabel={itemName ? `Increase quantity of ${itemName}` : 'Increase quantity'}
         style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
         <Icon name="plus" size={20} color={canIncrease ? colors.ink : colors.disabledText} />
       </Pressable>

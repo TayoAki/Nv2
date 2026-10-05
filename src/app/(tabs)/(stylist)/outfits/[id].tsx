@@ -36,6 +36,7 @@ import { colors, radius, space } from '@/theme';
 /** Layers that can replace each other in a swap. */
 const SWAP_GROUP: Record<WardrobeCategory, string> = {
   jackets: 'outer',
+  waistcoats: 'mid',
   knitwear: 'outer',
   shirts: 'top',
   trousers: 'bottom',
@@ -189,8 +190,17 @@ function OutfitBody({ outfit }: { outfit: ResolvedOutfit }) {
           onPress={toggleSaved}
         />
         <Button
-          title="Choose an item to try on"
+          title="See the whole outfit on me"
+          icon="account"
           variant="outline"
+          disabled={!canTryOn || needsAttention}
+          onPress={() => router.push({ pathname: '/photo', params: { outfitId: outfit.id } })}
+          accessibilityHint="Creates one AI preview with every piece of this outfit"
+        />
+        <Button
+          title="Choose one item to try on"
+          variant="link"
+          tone="ink"
           disabled={!canTryOn}
           onPress={() => router.push({ pathname: '/try-on', params: { source: 'closet', outfitId: outfit.id } })}
         />
@@ -320,6 +330,7 @@ function OutfitMenu({ outfit, visible, onClose }: { outfit: ResolvedOutfit; visi
 function categoryLabel(category: WardrobeCategory) {
   return {
     jackets: 'Jacket',
+    waistcoats: 'Waistcoat',
     shirts: 'Shirt',
     knitwear: 'Knitwear',
     trousers: 'Trousers',

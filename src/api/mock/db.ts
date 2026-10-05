@@ -1,10 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import type { InventoryOverride } from '../catalog/capsule';
+import { demoMode } from '../mode';
+
 import type {
+  AdminSession,
+  BodyMeasurements,
   BagLine,
   ColorInfo,
   GarmentKind,
   GarmentRef,
+  TryOnFailureCode,
   Look,
   Money,
   Outfit,
@@ -28,7 +34,7 @@ import {
 } from './fixtures';
 
 /** Bump when fixture or storage shapes change; older saved demo data is replaced. */
-const DB_VERSION = 3;
+const DB_VERSION = 8;
 const STORAGE_KEY = 'nyoni.demo-db';
 
 export type JobScenario = 'normal' | 'slow' | 'timeout' | 'ai_failure' | 'quota';
@@ -55,6 +61,17 @@ export type StoredJob = {
   createdAt: string;
   cancelledAt?: string;
   lookId?: string;
+  /** Render batch on the Nyoni server, and its last known state. */
+  server?: {
+    batchId: string;
+    status: 'running' | 'done' | 'partial' | 'failed';
+    processing: boolean;
+    resultUrl: string | null;
+    errorCode: string | null;
+    simulated: boolean;
+  };
+  /** Settled before any work started (e.g. no credits left). */
+  failureCode?: TryOnFailureCode;
 };
 
 export type StoredHandoff = {
@@ -81,10 +98,18 @@ export type PendingSignIn = { email: string; mode: 'sign_in' | 'recover'; expire
 
 export type MockDb = {
   version: number;
-  seed: 'demo' | 'empty';
+  seed: 'demo' | 'guest' | 'empty';
   products: Product[];
+  /** Admin-panel edits to sizes, stock and price. Store data: kept when demo data resets. */
+  inventory: Record<string, InventoryOverride>;
+  /** Staff session for the admin panel; kept when demo data resets. */
+  adminSession: AdminSession | null;
   bag: StoredBagLine[];
   photos: PersonPhoto[];
+  /** Permission to use the third-party AI services, with the wording version agreed to. */
+  aiConsent?: { version: string; grantedAt: string } | null;
+  /** Estimated from photos (the photos themselves are never kept). */
+  bodyMeasurements?: BodyMeasurements | null;
   jobs: StoredJob[];
   looks: Look[];
   handoffs: StoredHandoff[];
@@ -102,30 +127,41 @@ export type MockDb = {
   orderCounter: number;
 };
 
-export function createDb(seed: 'demo' | 'empty', now = Date.now()): MockDb {
+/**
+ * 'demo': a full sample shopper (demo builds). 'guest': a new shopper in beta and store builds,
+ * with only the example closet. 'empty': nothing at all.
+ */
+export function createDb(
+  seed: 'demo' | 'guest' | 'empty',
+  now = Date.now(),
+  inventory: Record<string, InventoryOverride> = {},
+): MockDb {
   const demo = seed === 'demo';
-  const products = buildCatalog();
+  const products = buildCatalog(inventory);
   return {
     version: DB_VERSION,
     seed,
     products,
+    inventory,
+    adminSession: null,
     bag: demo
       ? [
           {
-            id: 'b-berry-42',
-            productId: 'p-berry-peak-two-piece-suit',
-            variantId: 'p-berry-peak-two-piece-suit-42',
+            id: 'b-nathan-42',
+            productId: 'p-nathan',
+            variantId: 'p-nathan-42',
             quantity: 1,
             priceSeen: usd(895),
           },
         ]
       : [],
     photos: [],
+    bodyMeasurements: null,
     jobs: [],
     looks: demo ? buildDemoLooks(now) : [],
     handoffs: [],
     receipts: [],
-    wardrobe: demo ? buildWardrobe(now) : [],
+    wardrobe: demo ? buildWardrobe(now) : seed === 'guest' ? buildWardrobe(now, 'example') : [],
     imports: [],
     outfits: demo ? buildOutfits(now) : [],
     thread: demo ? buildThread(now) : [],
@@ -156,7 +192,7 @@ async function load(): Promise<MockDb> {
   } catch {
     // Unreadable demo data: start fresh below.
   }
-  db = createDb('demo');
+  db = createDb(demoMode ? 'demo' : 'guest');
   persist();
   return db;
 }
@@ -176,8 +212,17 @@ export function persist() {
   }, 250);
 }
 
-export async function resetDb(seed: 'demo' | 'empty'): Promise<MockDb> {
-  db = createDb(seed);
+/** Writes immediately, for changes that must survive a reload right away (sign-out). */
+export async function persistNow() {
+  if (saveTimer) clearTimeout(saveTimer);
+  if (db) await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(db)).catch(() => undefined);
+}
+
+export async function resetDb(seed: 'demo' | 'guest' | 'empty'): Promise<MockDb> {
+  // Admin-panel edits are store data, not shopper demo data, so they survive a reset.
+  const previous = db;
+  db = createDb(seed, Date.now(), previous?.inventory ?? {});
+  db.adminSession = previous?.adminSession ?? null;
   loading = Promise.resolve(db);
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(db));
   return db;

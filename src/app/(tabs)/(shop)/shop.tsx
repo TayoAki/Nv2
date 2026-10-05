@@ -28,10 +28,10 @@ const CATEGORIES: { value: ProductCategory | 'all'; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'suits', label: 'Suits' },
   { value: 'tuxedos', label: 'Tuxedos' },
-  { value: 'jackets', label: 'Jackets' },
-  { value: 'shirts', label: 'Shirts' },
+  { value: 'jackets', label: 'Blazers' },
+  { value: 'waistcoats', label: 'Waistcoats' },
   { value: 'trousers', label: 'Trousers' },
-  { value: 'shoes', label: 'Shoes' },
+  { value: 'shoes', label: 'Boots' },
   { value: 'accessories', label: 'Accessories' },
 ];
 
@@ -75,7 +75,7 @@ export default function ShopScreen() {
         <SectionHeader title="The collection" />
         <TextField
           icon="search"
-          placeholder="Search suits, shirts, colors…"
+          placeholder="Search suits, blazers, colors…"
           value={search}
           onChangeText={setSearch}
           returnKeyType="search"

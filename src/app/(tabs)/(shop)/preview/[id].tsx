@@ -15,7 +15,7 @@ import { Banner, StateView } from '@/components/ui/Feedback';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { OptionSheet } from '@/components/ui/SelectField';
 import { useProduct } from '@/data/shop';
-import { useDeleteLook, useLook, useReportLook, useSetLookSaved } from '@/data/tryOn';
+import { photoParamsFor, useDeleteLook, useLook, useReportLook, useSetLookSaved } from '@/data/tryOn';
 import { track } from '@/lib/analytics';
 import { confirm } from '@/lib/confirm';
 import { expiryLabel } from '@/lib/format';
@@ -24,6 +24,7 @@ import { useTryOnSession } from '@/state/tryOnSession';
 import { colors, radius, space } from '@/theme';
 
 const REPORT_REASONS = [
+  { value: 'offensive', label: 'It’s offensive or inappropriate' },
   { value: 'identity', label: 'My face, skin tone or body changed' },
   { value: 'garment', label: 'The garment looks wrong (color, pattern, lapels…)' },
   { value: 'incomplete', label: 'Parts of the garment are missing' },
@@ -117,7 +118,7 @@ function PreviewBody({ look }: { look: Look }) {
   const retry = () =>
     router.push({
       pathname: '/photo',
-      params: look.garment.kind === 'product' ? { productId: look.garment.productId } : { closetItemId: look.garment.itemId },
+      params: photoParamsFor(look.garment),
     });
 
   return (
@@ -153,6 +154,13 @@ function PreviewBody({ look }: { look: Look }) {
         style={styles.toggle}
       />
 
+      {look.simulated ? (
+        <Banner
+          tone="notice"
+          title="Simulated preview"
+          message="AI rendering isn't connected yet, so this image is a placeholder made from your photo and the pieces. Real previews appear here once it's switched on."
+        />
+      ) : null}
       <AppText variant="secondary" color={colors.muted} align="center">
         A style preview, not a fit measurement. Appearance may vary. Use the size guide or book a fitting to confirm fit.
       </AppText>
@@ -180,11 +188,18 @@ function PreviewBody({ look }: { look: Look }) {
         {isProduct && look.garmentAvailable && !expired ? (
           <Button title="Choose size" variant="gold" onPress={() => setSizeOpen(true)} />
         ) : null}
-        {!isProduct && !expired ? (
+        {look.garment.kind === 'closet' && !expired ? (
           <Button
             title="View in my closet"
             variant="gold"
             onPress={() => look.garment.kind === 'closet' && router.navigate(`/closet/items/${look.garment.itemId}`)}
+          />
+        ) : null}
+        {look.garment.kind === 'outfit' && look.garmentAvailable && !expired ? (
+          <Button
+            title="View the outfit"
+            variant="gold"
+            onPress={() => look.garment.kind === 'outfit' && router.navigate(`/outfits/${look.garment.outfitId}`)}
           />
         ) : null}
         {!expired ? (
@@ -220,7 +235,13 @@ function PreviewBody({ look }: { look: Look }) {
         onClose={() => setReportOpen(false)}
         onSelect={(reason) => {
           setReportOpen(false);
-          report.mutate({ id: look.id, reason });
+          report.mutate(
+            { id: look.id, reason },
+            {
+              onSuccess: () => showToast('Thanks. The Nyoni team will review this preview.'),
+              onError: (err) => showToast(errorMessage(err), { tone: 'error' }),
+            },
+          );
         }}
       />
     </View>
@@ -242,10 +263,12 @@ function DemoPreview({ look }: { look: Look }) {
       </View>
       <View style={styles.demoCaption}>
         <AppText variant="label" align="center">
-          Demo preview
+          {look.isDemo ? 'Demo preview' : 'Preview image unavailable'}
         </AppText>
         <AppText variant="caption" color={colors.muted} align="center">
-          The generated look for {look.garmentTitle} appears here once a try-on provider is connected.
+          {look.isDemo
+            ? `The generated look for ${look.garmentTitle} appears here once a try-on provider is connected.`
+            : 'This preview’s image couldn’t be loaded. Create a new preview to see it again.'}
         </AppText>
       </View>
     </View>
@@ -259,7 +282,8 @@ const styles = StyleSheet.create({
   },
   frame: {
     width: '100%',
-    aspectRatio: 0.74,
+    // Renders are 2:3 portraits, head to toe.
+    aspectRatio: 2 / 3,
     borderRadius: radius.card,
     overflow: 'hidden',
     backgroundColor: '#EEE9E0',

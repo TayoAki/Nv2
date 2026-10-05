@@ -11,7 +11,7 @@ export const queryClient = new QueryClient({
       // Retry once for transient failures; never retry validation, missing or expired data.
       retry: (failureCount, error) =>
         failureCount < 1 &&
-        !(isApiError(error) && ['validation', 'not_found', 'expired', 'quota'].includes(error.code)),
+        !(isApiError(error) && ['validation', 'not_found', 'expired', 'quota', 'unauthorized'].includes(error.code)),
       retryDelay: 800,
       // The demo API runs on-device, so it keeps working without a connection.
       networkMode: apiMode === 'demo' ? 'always' : 'online',

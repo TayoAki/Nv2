@@ -1,18 +1,20 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useNavigationContainerRef, type Href } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
-import { apiMode, demoControls } from '@/api';
+import { demoControls } from '@/api';
 import { Icon } from '@/components/icons/Icon';
 import { AppText } from '@/components/ui/AppText';
 import { Divider } from '@/components/ui/Card';
 import { ListRow } from '@/components/ui/ListRow';
 import { Sheet } from '@/components/ui/Sheet';
 import { useSession } from '@/data/account';
+import { useMember } from '@/data/member';
 import { confirm } from '@/lib/confirm';
 import { links, openBookFitting, openExternal } from '@/lib/links';
 import { resetToShop } from '@/lib/navigation';
-import { DEMO_SCENARIOS, useDevSettings } from '@/state/devSettings';
+import { demoMode } from '@/api/mode';
+import { DEMO_SCENARIOS, demoToolsEnabled, useDevSettings } from '@/state/devSettings';
 import { useHeaderMenu } from '@/state/headerMenu';
 import { showToast } from '@/state/toast';
 import { useTryOnSession } from '@/state/tryOnSession';
@@ -22,6 +24,7 @@ export function HeaderMenuSheet() {
   const open = useHeaderMenu((state) => state.open);
   const hide = useHeaderMenu((state) => state.hide);
   const { data: session } = useSession();
+  const { data: member } = useMember();
   const queryClient = useQueryClient();
   const navigationRef = useNavigationContainerRef();
   const scenario = useDevSettings((state) => state.scenario);
@@ -55,8 +58,8 @@ export function HeaderMenuSheet() {
   };
 
   return (
-    <Sheet visible={open} onClose={hide} title="Your account" subtitle={sessionLabel(session)}>
-      <ListRow icon="account" title="Account and sign-in" onPress={() => go('/account')} />
+    <Sheet visible={open} onClose={hide} title="Your account" subtitle={demoMode ? sessionLabel(session) : memberLabel(member)}>
+      <ListRow icon="account" title={demoMode ? 'Account and sign-in' : 'Account'} onPress={() => go('/account')} />
       <ListRow icon="sliders" title="Style preferences" onPress={() => go('/style-profile')} />
       <ListRow icon="shieldCheck" title="Photos and privacy" onPress={() => go('/privacy')} />
       <Divider spacing={space.xs} />
@@ -77,15 +80,36 @@ export function HeaderMenuSheet() {
           openExternal(links.contact);
         }}
       />
+      <ListRow
+        icon="shieldCheck"
+        title="Privacy policy"
+        onPress={() => {
+          hide();
+          openExternal(links.privacyPolicy);
+        }}
+      />
+      <ListRow
+        icon="info"
+        title="Terms and conditions"
+        onPress={() => {
+          hide();
+          openExternal(links.terms);
+        }}
+      />
 
-      {apiMode === 'demo' ? (
+      {/* Staff tool, web only. Staff open /admin directly; shoppers only see it in demo builds. */}
+      {Platform.OS === 'web' && demoToolsEnabled ? (
+        <ListRow icon="sliders" title="Store admin" subtitle="Staff sign-in: sizes, stock and prices" onPress={() => go('/admin')} />
+      ) : null}
+
+      {demoToolsEnabled ? (
         <View style={styles.demo}>
           <AppText variant="overline" color={colors.bronze}>
-            Demo mode
+            Demo tools
           </AppText>
           <AppText variant="secondary" color={colors.muted}>
-            Sample data only. Nothing is sent to a store or an AI provider. Pick a scenario to preview
-            the alternative states from the screen index.
+            Development builds only. Pick a scenario to preview the alternative states from the
+            screen index.
           </AppText>
           <View style={styles.scenarios} accessibilityRole="radiogroup">
             {DEMO_SCENARIOS.map((option) => {
@@ -137,6 +161,12 @@ export function HeaderMenuSheet() {
       ) : null}
     </Sheet>
   );
+}
+
+function memberLabel(member: ReturnType<typeof useMember>['data']) {
+  if (member === undefined) return undefined;
+  if (!member) return 'Browsing as a guest';
+  return `Signed in as ${member.member.firstName ?? member.member.email ?? 'a Nyoni member'}`;
 }
 
 function sessionLabel(session: ReturnType<typeof useSession>['data']) {

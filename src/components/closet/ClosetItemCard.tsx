@@ -14,8 +14,12 @@ type Props = {
   selected?: boolean;
 };
 
-/** "Owned" only for confirmed closet items; "Ordered" until a purchase is confirmed received. */
+/**
+ * "Owned" only for confirmed closet items; "Ordered" until a purchase is confirmed received;
+ * "Example" for the example closet shown to guests.
+ */
 export function ownershipLabel(item: WardrobeItem) {
+  if (item.provenance === 'example') return 'Example';
   return item.ownership === 'ordered' ? 'Ordered' : 'Owned';
 }
 

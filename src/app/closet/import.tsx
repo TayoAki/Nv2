@@ -38,6 +38,7 @@ import { colors, radius, space } from '@/theme';
 
 const CATEGORY_OPTIONS: { value: WardrobeCategory; label: string }[] = [
   { value: 'jackets', label: 'Jacket' },
+  { value: 'waistcoats', label: 'Waistcoat' },
   { value: 'shirts', label: 'Shirt' },
   { value: 'knitwear', label: 'Knitwear' },
   { value: 'trousers', label: 'Trousers' },
@@ -47,6 +48,7 @@ const CATEGORY_OPTIONS: { value: WardrobeCategory; label: string }[] = [
 
 const CATEGORY_NOUN: Record<WardrobeCategory, string> = {
   jackets: 'Jacket',
+  waistcoats: 'Waistcoat',
   shirts: 'Shirt',
   knitwear: 'Knit',
   trousers: 'Trousers',
@@ -123,7 +125,7 @@ export default function ClosetImportScreen() {
         <StateView
           kind="loading"
           title={pendingManual ? 'Preparing your item' : 'Checking your photos'}
-          message="Finding each garment and choosing the clearest photo."
+          message="Finding each garment, cutting it out and reading its colours. This can take a minute or two."
         />
       </Screen>
     );
@@ -290,6 +292,14 @@ function DraftReview({
           />
         </>
       }>
+      {imp.simulated ? (
+        <Banner
+          tone="notice"
+          title="Simulated import"
+          message="AI photo reading isn't connected yet. Choose the category and check every detail yourself."
+          style={styles.banner}
+        />
+      ) : null}
       {imp.failedPhotoCount > 0 ? (
         <Banner
           tone="notice"
@@ -322,7 +332,8 @@ function DraftReview({
         kind={category ? kindFor(category) : 'jacket'}
         colorHex={color?.hex}
         aspectRatio={1.35}
-        contentFit="cover"
+        // Cut-outs and whole-garment photos stay uncropped.
+        contentFit="contain"
         accessibilityLabel={photo ? 'Selected garment photo' : 'No photo yet'}
         style={styles.hero}>
         {draft.photos.length > 1 ? (
@@ -434,7 +445,15 @@ function DraftReview({
 
 function kindFor(category: WardrobeCategory) {
   return (
-    { jackets: 'jacket', shirts: 'shirt', knitwear: 'knitwear', trousers: 'trousers', shoes: 'shoes', accessories: 'accessory' } as const
+    {
+      jackets: 'jacket',
+      waistcoats: 'waistcoat',
+      shirts: 'shirt',
+      knitwear: 'knitwear',
+      trousers: 'trousers',
+      shoes: 'shoes',
+      accessories: 'accessory',
+    } as const
   )[category];
 }
 

@@ -11,11 +11,12 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.tayom.nyonicouture",
-      "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+      "config": {
+        "usesNonExemptEncryption": false
       }
     },
     "android": {
+      "package": "com.nyonicouture.app",
       "adaptiveIcon": {
         "backgroundColor": "#0B0B0C",
         "foregroundImage": "./assets/images/android-icon-foreground.png"
@@ -40,8 +41,16 @@
         "expo-image-picker",
         {
           "photosPermission": "Nyoni Couture uses the photos you choose to create try-on previews and to add clothes to your closet.",
-          "cameraPermission": "Nyoni Couture uses the camera when you choose to take a photo for a try-on preview or your closet.",
+          "cameraPermission": "Nyoni Couture uses the camera for your body scan and when you choose to take a photo for a try-on preview or your closet.",
           "microphonePermission": false
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Nyoni Couture uses the camera for your body scan and when you choose to take a photo for a try-on preview or your closet.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
         }
       ]
     ],
@@ -49,12 +58,12 @@
       "typedRoutes": true,
       "reactCompiler": true
     },
+    "owner": "tayom",
     "extra": {
       "router": {},
       "eas": {
         "projectId": "282ffbc1-d35d-49e0-ac1a-8cc8db8524e3"
       }
-    },
-    "owner": "tayom"
+    }
   }
 }

@@ -55,7 +55,8 @@ export function OutfitCollage({ pieces, aspectRatio = 1.1, layout = 'flatlay', s
   const extras = remaining;
 
   let body: React.ReactNode = null;
-  if (layout === 'row' || !outer || (!top && !bottom)) {
+  // A suit covers the trousers, so it can lead a flat lay without a separate bottom.
+  if (layout === 'row' || !outer || (!top && !bottom && outer.kind !== 'suit')) {
     body = <View style={styles.row}>{pieces.slice(0, 5).map((p) => renderPiece(p, 1, 0.8))}</View>;
   } else {
     const leftBottom = shoes ?? extras.shift();

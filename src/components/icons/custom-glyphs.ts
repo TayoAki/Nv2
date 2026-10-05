@@ -27,6 +27,14 @@ export const customGlyphs = {
     ['circle', { cx: 12, cy: 14.9, r: 0.45, fill: 'currentColor' }],
     ['circle', { cx: 12, cy: 17.4, r: 0.45, fill: 'currentColor' }],
   ],
+  garmentWaistcoat: [
+    ['path', { d: 'M8.5 3.5 6 5v14.7a.8.8 0 0 0 .8.8H12V11.6L8.5 3.5Z' }],
+    ['path', { d: 'M15.5 3.5 18 5v14.7a.8.8 0 0 1-.8.8H12V11.6l3.5-8.1Z' }],
+    ['path', { d: 'M8.5 3.5h7M6 16.9l1.6 1.1M18 16.9l-1.6 1.1' }],
+    ['circle', { cx: 12, cy: 14, r: 0.45, fill: 'currentColor' }],
+    ['circle', { cx: 12, cy: 16.6, r: 0.45, fill: 'currentColor' }],
+    ['circle', { cx: 12, cy: 19.2, r: 0.45, fill: 'currentColor' }],
+  ],
   garmentShirt: [
     ['path', { d: 'M8.6 4 5.3 5.4a1.4 1.4 0 0 0-.8 1.3v13.8h15V6.7a1.4 1.4 0 0 0-.8-1.3L15.4 4' }],
     ['path', { d: 'M8.6 4 9 7.9 12 7l3 .9.4-3.9' }],
