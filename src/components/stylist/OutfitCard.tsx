@@ -5,6 +5,7 @@ import { Icon } from '@/components/icons/Icon';
 import { OutfitCollage } from '@/components/media/OutfitCollage';
 import { AppText } from '@/components/ui/AppText';
 import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Feedback';
 import { useOutfit } from '@/data/stylist';
 import { colors, fonts, radius, space } from '@/theme';
@@ -29,6 +30,7 @@ export function OutfitCard({ outfitId }: { outfitId: string }) {
   const allOwned = outfit.resolvedItems.every((r) => r.ref.kind === 'owned' && r.status !== 'missing');
   const fromExamples = outfit.resolvedItems.some((r) => 'item' in r && r.item.provenance === 'example');
   const missing = outfit.resolvedItems.some((r) => r.status !== 'ok');
+  const canTryOn = !missing && outfit.resolvedItems.some((r) => r.status === 'ok' && 'item' in r && r.item.tryOnEligible);
 
   return (
     <View style={styles.wrap}>
@@ -56,6 +58,21 @@ export function OutfitCard({ outfitId }: { outfitId: string }) {
           A piece in this outfit was removed or is unavailable. Open it to swap.
         </AppText>
       ) : null}
+      {/* The whole outfit in one AI preview, straight from the chat. */}
+      <View style={styles.actions}>
+        {canTryOn ? (
+          <Button
+            title="Try the whole outfit on"
+            icon="account"
+            size="sm"
+            variant="gold"
+            fullWidth={false}
+            onPress={() => router.push({ pathname: '/photo', params: { outfitId: outfit.id } })}
+            accessibilityHint="Creates one AI preview of you wearing every piece"
+          />
+        ) : null}
+        <Button title="Open outfit" size="sm" variant="link" tone="ink" fullWidth={false} onPress={() => router.push(`/outfits/${outfit.id}`)} />
+      </View>
     </View>
   );
 }
@@ -63,6 +80,12 @@ export function OutfitCard({ outfitId }: { outfitId: string }) {
 const styles = StyleSheet.create({
   wrap: {
     gap: space.xs,
+  },
+  actions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: space.sm,
   },
   pressed: {
     opacity: 0.85,
