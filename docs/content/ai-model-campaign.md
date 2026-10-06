@@ -13,6 +13,32 @@ The production method is Wholesale Ted's "AI influencer" workflow, minus Amazon:
 
 ---
 
+## 0. The exact trend from the video: AI "style guide" accounts
+
+These are the accounts she describes: an AI model, a fixed pose and setting, cycling through outfits with a styling tip, and a link in the bio. Found by filtering TikTok's own "AI-generated" label across 20 searches.
+
+| Account | Followers | Best videos | Started | Makes money from |
+| --- | --- | --- | --- | --- |
+| **@layrandlayr** | **1.0M** in about 4–5 months | **14.4M** "Couple outfit inspiration" (478K saves); 12.2M colour combinations; 12.1M jeans guide; 6.2M office colour combos (men and women) | First hits in late May 2026 | **Its own product** (layr-layr.com, detachable layering pieces) |
+| @styleformula.daily | 410K | 1.6M "fall third-colour outfit ideas" | 2026 | A digital style guide (Gumroad) |
+| @thestyleformulaa | 303K | 1.2M "save this colour guide" | 2026 | A style guide (Beacons) |
+| @dresscodelab.co | 160K | 2.4M "colour pairings that look elevated" | 2026 | Affiliate links (ShopMy) |
+
+**What they all do:**
+- **One AI model** (or a "digital fashion duo"), the same face every time.
+- **Same pose, same backdrop,** with only the outfit changing. Each frame shows one colour combination or rule.
+- **Text on screen,** music, no talking. Hooks like "Save these colour combinations for later 🤍" and "Which one would you try?"
+- **Optimised for saves:** 100K–480K saves per hit. Saves are what push these videos.
+- **Their single biggest format is couples:** "COUPLE OUTFIT inspiration to look good together" (14.4M), "Couple colour combinations" (4.4M). A man and a woman, coordinated colours.
+
+**Why this suits Nyoni better than the Amazon version:** @layrandlayr is a clothing *brand* that used this exact format to reach 1M followers and sell its own pieces. Nyoni can do the same with its own suits and blazers, and keep the full margin instead of a 1–4% affiliate commission.
+
+**What this changes in the plan:**
+- Script 2 ("Which combo looks most premium?") is the core format. Post it most often.
+- Add a **couple colour-combination** series. He wears Nyoni; she wears simple neutral pieces that coordinate. It's the trend's top format, and it reaches the women who buy for, or influence, men (section 2).
+
+---
+
 ## 1. What's already working
 
 ### Top formats by views and saves
