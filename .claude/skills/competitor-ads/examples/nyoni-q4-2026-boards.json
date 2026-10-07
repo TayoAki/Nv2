@@ -1,0 +1,133 @@
+{
+ "as_of": "2026-10-07",
+ "boards": [
+  {
+   "file": "campaign1-retargeting-test",
+   "title": "Campaign 1 · Retargeting, test phase",
+   "items": [
+    [
+     "2672051369847365",
+     "R1b \"Not sure of your size?\""
+    ],
+    [
+     "1633232827499768",
+     "R1b objection + price line"
+    ],
+    [
+     "1762153695170595",
+     "R1b variant B: tape measure"
+    ],
+    [
+     "4510131912562228",
+     "R1 catalog ad: plain product"
+    ],
+    [
+     "4559620764311039",
+     "R1 catalog ad: model on studio"
+    ],
+    [
+     "1390789795746290",
+     "R3 complete the look: add-on"
+    ],
+    [
+     "1066971816255050",
+     "R3 bundle"
+    ],
+    [
+     "834670572508748",
+     "R2b POV video"
+    ]
+   ]
+  },
+  {
+   "file": "campaign2-blackfriday-gifting",
+   "title": "Campaign 2 · Black Friday + gifting",
+   "items": [
+    [
+     "829446943219470",
+     "R4 early access"
+    ],
+    [
+     "1107831008609094",
+     "R4 friends & family event"
+    ],
+    [
+     "839381015485235",
+     "R5 Black Friday offer"
+    ],
+    [
+     "32578447325135172",
+     "R5 big offer type"
+    ],
+    [
+     "843023668329243",
+     "R5 product + offer"
+    ],
+    [
+     "1430050985140898",
+     "R5 creator Black Friday (Indochino 30%)"
+    ],
+    [
+     "1066971816255050",
+     "R6 gift / bundle"
+    ]
+   ]
+  },
+  {
+   "file": "campaign3-fittings",
+   "title": "Campaign 3 · Fittings, Atlanta + Charlotte",
+   "items": [
+    [
+     "1762153695170595",
+     "F1/F2 \"Hello, [city]\" + tape"
+    ],
+    [
+     "952689140841775",
+     "F1/F2 showroom \"now open\""
+    ],
+    [
+     "1011185301704931",
+     "F1/F2 \"Come on down, [city]\""
+    ],
+    [
+     "2224356785082703",
+     "F1/F2 Book now → showrooms"
+    ],
+    [
+     "1633232827499768",
+     "F3 groom + groomsmen"
+    ],
+    [
+     "1006820288694969",
+     "F3 wedding"
+    ]
+   ]
+  },
+  {
+   "file": "campaign4-prospecting",
+   "title": "Campaign 4 · Prospecting",
+   "items": [
+    [
+     "1387195836903724",
+     "P1/P3 same man, two suits"
+    ],
+    [
+     "1236690695227318",
+     "P3 same man, same afternoon"
+    ],
+    [
+     "1023421166996239",
+     "P3 fit pain"
+    ],
+    [
+     "873019829191528",
+     "P3 \"Fit shouldn't be a luxury\""
+    ],
+    [
+     "1318552090380108",
+     "P2 better with a sportcoat"
+    ]
+   ]
+  }
+ ]
+}
