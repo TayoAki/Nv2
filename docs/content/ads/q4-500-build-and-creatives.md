@@ -40,6 +40,21 @@ Settings for all four:
 
 Turn ads on and off by date as listed below; ads don't have their own dates.
 
+## Visual rules from competitors' longest-running ads
+
+Taken from the images of the 30 longest-running competitor ads (127–805 days) and 15 catalog ads.
+
+1. **One idea, one line.** A 2–6 word headline in a white editorial serif, centred in the middle or upper-middle of the photo, with one small line underneath (price, address or benefit). Examples:
+   - "STOP RENTING. Own your wedding look · Starting at $199" (SuitShop, 805 days)
+   - "Hello Washington, D.C. We're here. [address]" (Proper Cloth, 240 days)
+2. **The headline answers an objection.** For example, "No, we don't do rentals." (SuitShop, 303 days).
+3. **Real settings and natural light:** wedding, lounge armchair, tailor's tape, showroom interior.
+4. **POV phone videos.** "POV: You found the perfect Old Money brand" (Parijan, 314 days).
+5. **Catalog ads stay plain:** the product on white or cream, or a model on a neutral studio background, with no overlays.
+6. Don't copy misleading "we're closing the store" letter ads.
+
+Use the bold rounded font in organic videos only. Paid ads use the serif.
+
 ## Creatives to generate
 
 Make every video and image in two sizes:
@@ -91,21 +106,31 @@ Still images: one frame per blazer, with the blazer name and price in the top-mi
 
 ### Campaigns 1 and 2: Retargeting
 
-**R1 · Catalog ad (no design needed).** Meta builds it from the WooCommerce catalog.
+**R1 · Catalog ad (no design needed).** Meta builds it from the WooCommerce catalog, with no frame or overlay. Check that the catalog photos are clean: one product, plain background.
 - Live: 14 Oct – 17 Dec.
 - Headline: *The one you looked at is still here*
 - Primary text: *Still deciding? Book a fitting in Atlanta or Charlotte, or message us your measurements and we'll help you pick a size.*
-- Optional frame overlay: a thin gold border with the Nyoni logo bottom-left.
+
+**R1b · Not sure of your size? (static, 4:5 + 9:16). Live 14 Oct – 17 Dec.**
+- Image: Marcus seated in a dark wood and leather armchair in a warm tailoring lounge, wearing the Navy three-piece and a white shirt, looking at the camera, editorial light.
+- Text, white serif, centred: **"Not sure of your size?"**
+- Small line underneath: *"We'll fit you. Atlanta · Charlotte · or online."*
+- CTA: Shop now → https://nyonicouture.com/product/three-piece-suit/nathan/
+- A second version with CTA Book now → https://nyoni-couture.square.site/
 
 **R2 · Instagram warm-up (14 Oct – 16 Nov).** Re-use your top 3 organic Reels by saves. No new creative.
 
 **R3 · Complete the look (carousel, 4 cards, 1080×1080). 21 Oct – 17 Dec.**
-1. Marcus in the Navy three-piece, full body: "The suit is half the look."
-2. Close-up of the Antwerp boot ($495) on the grey carpet.
-3. Close-up of the Paisley pocket square ($69) in the breast pocket.
-4. The black belt ($145) at the waist.
+1. Marcus full body in the Navy three-piece, natural light. Serif text: **"The suit is half the look."**
+2. **Real store photo** of the Antwerp boot on cream or white; small text: Antwerp Wing-Tip Boot · $495.
+3. **Real store photo** of the Paisley pocket square; small text: Paisley Pocket Square · $69.
+4. **Real store photo** of the black belt; small text: Black Leather Belt · $145.
 
-Each card links to its product.
+Don't generate the product cards with AI. Each card links to its product.
+
+**R2b · POV video (optional, 7–10 s, phone style).**
+- Victor and Jalen walk out of a building onto a city street, both in the Ivoire blazer.
+- Serif text, middle of the frame: **"POV: you found the brand you and your dad both wear."**
 
 **R4 · Black Friday early access (17 – 26 Nov).** Static 4:5 and 9:16.
 - Cream background with three cut-out pieces: Ivoire, Thomson, Antwerp boot.
