@@ -1,0 +1,16 @@
+{
+  "title": "Same fit, two generations",
+  "model": "kwaivgi/kling-v3.0-pro",
+  "duration": 5,
+  "aspect_ratio": "9:16",
+  "speaker": "the older man on the right with short silver hair and a grey beard",
+  "listener": "the younger man on the left",
+  "voice": "a deep, calm, warm, confident older man's voice, unhurried",
+  "shots": [
+    { "frame": "frames/shot1.jpg", "line": "Remember, charcoal with white looks safe.", "words": ["charcoal", "white"], "adjective": "safe", "opener": true },
+    { "frame": "frames/shot2.jpg", "line": "But add the waistcoat, and it looks powerful.", "words": ["charcoal", "white", "waistcoat"], "adjective": "powerful" },
+    { "frame": "frames/shot3.jpg", "line": "A cream knit with denim looks clean.", "words": ["cream", "denim"], "adjective": "clean" },
+    { "frame": "frames/shot4.jpg", "line": "But add rust, and it looks rich.", "words": ["cream", "denim", "rust"], "adjective": "rich" },
+    { "frame": "frames/shot5.jpg", "line": "And ivory with black? That looks expensive.", "words": ["ivory", "black"], "adjective": "expensive", "hold": 0.8 }
+  ]
+}

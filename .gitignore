@@ -43,3 +43,4 @@ example
 /android
 dist-live/
 dist-e2e/
+docs/content/video/*/out/
