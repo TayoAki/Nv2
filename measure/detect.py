@@ -40,6 +40,10 @@ def load_image(data: bytes) -> np.ndarray:
     except Exception as error:  # noqa: BLE001 - any decode failure means an unreadable photo
         raise MeasureError("bad_image", "We couldn't read this photo. Use a JPEG, PNG or WebP.") from error
     image.thumbnail((MAX_EDGE, MAX_EDGE))
+    # MediaPipe aborts the whole process reading the segmentation mask when the width isn't a
+    # multiple of 4 (its float mask rows get padded). Trim the 1-3 spare columns on the right.
+    if image.width % 4:
+        image = image.crop((0, 0, image.width - image.width % 4, image.height))
     return np.asarray(image)
 
 
