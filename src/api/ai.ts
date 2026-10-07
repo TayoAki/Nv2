@@ -1,3 +1,4 @@
+import { File as LocalFile } from 'expo-file-system';
 import { Platform } from 'react-native';
 
 import { ApiError } from './errors';
@@ -136,13 +137,24 @@ export async function deviceCredits(): Promise<number> {
   return (await asDevice<{ credits: number }>('/v1/device')).credits;
 }
 
+/** A photo on the phone's disk as an expo-file-system `File`, which expo/fetch can send. */
+function localFile(uri: string) {
+  const file = new LocalFile(uri);
+  if (!file.exists) throw new ApiError('validation', "We couldn't read this photo. Choose it again.");
+  return file;
+}
+
 /** Sends a local photo (file:, blob: or data: URI) to the server, which normalises it. */
 export async function uploadImage(localUri: string, kind: 'person' | 'closet') {
   let blob: Blob;
-  try {
-    blob = await (await fetch(localUri)).blob();
-  } catch {
-    throw new ApiError('validation', "We couldn't read this photo. Choose it again.");
+  if (Platform.OS !== 'web' && localUri.startsWith('file:')) {
+    blob = localFile(localUri);
+  } else {
+    try {
+      blob = await (await fetch(localUri)).blob();
+    } catch {
+      throw new ApiError('validation', "We couldn't read this photo. Choose it again.");
+    }
   }
   return asDevice<{ blobId: string; url: string; framing: 'full' | 'cropped' | 'unknown' }>(`/v1/uploads?kind=${kind}`, {
     method: 'POST',
@@ -194,8 +206,8 @@ export type ServerMeasurements = {
   calibrated: boolean;
 };
 
-/** Adds a local photo to a multipart form: a Blob on web, a file reference on iOS and Android. */
-async function appendPhoto(form: FormData, name: string, uri: string, mimeType?: string) {
+/** Adds a local photo to a multipart form: a Blob on web, a `LocalFile` on iOS and Android. */
+async function appendPhoto(form: FormData, name: string, uri: string) {
   if (Platform.OS === 'web') {
     let blob: Blob;
     try {
@@ -205,8 +217,9 @@ async function appendPhoto(form: FormData, name: string, uri: string, mimeType?:
     }
     form.append(name, blob, `${name}.jpg`);
   } else {
-    // React Native's FormData streams the file from its URI.
-    form.append(name, { uri, name: `${name}.jpg`, type: mimeType ?? 'image/jpeg' } as unknown as Blob);
+    // The global fetch is expo/fetch, which can't send React Native's `{ uri, name, type }` parts
+    // (it throws before the request leaves the phone). A `File` implements Blob and is read for the upload.
+    form.append(name, localFile(uri));
   }
 }
 
@@ -218,8 +231,8 @@ export async function measureOnServer(input: {
 }) {
   const build = async () => {
     const form = new FormData();
-    await appendPhoto(form, 'front', input.front.uri, input.front.mimeType);
-    await appendPhoto(form, 'side', input.side.uri, input.side.mimeType);
+    await appendPhoto(form, 'front', input.front.uri);
+    await appendPhoto(form, 'side', input.side.uri);
     form.append('heightCm', String(input.heightCm));
     return form;
   };
@@ -237,7 +250,7 @@ export async function measureOnServer(input: {
 export async function checkScanPhotoOnServer(photo: { uri: string; mimeType?: string }, view: 'front' | 'side') {
   const build = async () => {
     const form = new FormData();
-    await appendPhoto(form, 'photo', photo.uri, photo.mimeType);
+    await appendPhoto(form, 'photo', photo.uri);
     form.append('view', view);
     return form;
   };

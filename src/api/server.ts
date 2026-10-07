@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { File as LocalFile } from 'expo-file-system';
 
 import { withBundledImages } from './catalog/capsule';
 import type { NyoniApi } from './client';
@@ -52,7 +53,8 @@ export type HttpInit = {
 export async function http<T>(path: string, init: HttpInit = {}): Promise<T> {
   if (!serverUrl) throw new ApiError('unavailable', 'The Nyoni server isn’t configured.');
   const headers: Record<string, string> = {};
-  const raw = typeof Blob !== 'undefined' && init.body instanceof Blob;
+  // An expo-file-system File implements Blob but isn't an instance of it.
+  const raw = (typeof Blob !== 'undefined' && init.body instanceof Blob) || init.body instanceof LocalFile;
   // FormData sets its own multipart content type (with the boundary).
   const form = typeof FormData !== 'undefined' && init.body instanceof FormData;
   if (init.body !== undefined && !form) headers['content-type'] = raw ? (init.body as Blob).type || 'image/jpeg' : 'application/json';
@@ -76,6 +78,8 @@ export async function http<T>(path: string, init: HttpInit = {}): Promise<T> {
       cache: 'no-store',
     });
   } catch {
+    // The request was sent but the server took too long: that isn't the shopper being offline.
+    if (controller.signal.aborted) throw new ApiError('unavailable', 'This is taking longer than usual. Try again in a moment.');
     throw new ApiError('network', "We couldn't reach Nyoni. Check your connection and try again.");
   } finally {
     clearTimeout(timer);
